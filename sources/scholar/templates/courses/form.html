@@ -3,8 +3,8 @@
 {% block title %}{{ 'Course settings' if course else 'New course' }}{% endblock %}
 {% block content %}
 {% set f = form or {} %}
-{% if course %}{{ course_tabs(course, 'edit') }}{% else %}<div class="page-header"><h1>New course</h1></div>{% endif %}
-<div class="card narrow">
+{% if course %}{{ course_tabs(course, 'edit') }}{% else %}<div class="page-head"><h1>New course</h1></div>{% endif %}
+<div class="section plain narrow">
 <form method="post">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="form-row">
@@ -18,7 +18,7 @@
 </form>
 </div>
 {% if course %}
-<div class="card narrow">
+<div class="section narrow">
   <h2>Danger zone</h2>
   <p class="muted small">Deleting removes the course and its assessments. Courses with student results are archived instead.</p>
   {{ post_button(url_for('courses.delete', course_id=course.id), 'Delete course', cls='btn btn-danger', confirm='Delete ' ~ course.code ~ '?') }}

@@ -1,39 +1,41 @@
-{# Renders review entries. Needs: entries, grading (bool) #}
+{# Renders review entries like a marked paper. Needs: entries, grading (bool) #}
+{% from "_macros.html" import bubble with context %}
 {% for e in entries %}{% set q = e.question %}{% set r = e.response %}
 <div class="question" id="q{{ e.number }}">
-  <div class="question-head">
-    <div><span class="qnum">{{ e.number }}.</span> <span class="small muted">{{ q.type_label }}</span>
-      {% for s in q.standards %}<span class="tag" title="{{ s.title }}">{{ s.code }}</span>{% endfor %}</div>
-    <div>
-      {% if r and r.needs_grading %}<span class="badge badge-amber">Awaiting grading</span>
+  <div class="qn">{{ e.number }}.</div>
+  <div class="qbody">
+    <div class="question-head">
+      <div class="meta"><span>{{ q.type_label }}</span>{% for s in q.standards %}<span class="tag" title="{{ s.title }}">{{ s.code }}</span>{% endfor %}</div>
+      {% if r and r.needs_grading %}<span class="score pending">Awaiting grading</span>
       {% else %}{% set pts = r.points_awarded if r and r.points_awarded is not none else 0 %}
-        <span class="badge {{ 'badge-green' if pts >= e.item.effective_points - 1e-9 else ('badge-amber' if pts > 0 else 'badge-red') }}">{{ pts|num }} / {{ e.item.effective_points|num }}</span>
+        <span class="score {{ 'full' if pts >= e.item.effective_points - 1e-9 else ('part' if pts > 0 else 'zero') }}">{{ pts|num }} of {{ e.item.effective_points|num }}</span>
       {% endif %}
     </div>
-  </div>
-  <div class="stem">{{ q.stem|richtext }}</div>
-  {% if q.has_choices %}
-    {% for c in e.choices %}
-      {% set picked = c.id in e.selected %}
-      <div class="choice static {{ 'correct' if e.show_key and c.is_correct }} {{ 'incorrect' if picked and e.show_key and not c.is_correct }}" {% if picked and not e.show_key %}style="border-color: var(--primary); background: var(--primary-soft)"{% endif %}>
-        <span class="letter">{{ loop.index0|letter }}</span><span>{{ c.text }}</span>
-        <span style="margin-left:auto" class="small">{% if picked %}<strong>{{ 'Your answer' if not grading else 'Selected' }}</strong>{% endif %}{% if e.show_key and c.is_correct %} ✓{% endif %}</span>
+    <div class="stem">{{ q.stem|richtext }}</div>
+    {% if q.has_choices %}
+      <div class="choices">
+      {% for c in e.choices %}
+        {% set picked = c.id in e.selected %}
+        {% set state = ('wrong' if e.show_key and not c.is_correct else 'filled') if picked else ('key' if e.show_key and c.is_correct else '') %}
+        <div class="choice static">{{ bubble(loop.index0, state) }}<span class="text">{{ c.text }}</span>
+          <span class="note {{ 'attn' if state == 'wrong' }}">{% if picked %}{{ 'selected' if grading else 'your answer' }}{% endif %}{% if e.show_key and c.is_correct %}{{ ', ' if picked }}correct answer{% endif %}</span></div>
+      {% endfor %}
       </div>
-    {% endfor %}
-    {% if not e.selected %}<p class="muted small">No answer given.</p>{% endif %}
-  {% else %}
-    <div class="answer-box">{% if e.answer == '[paper]' %}<em>Paper response</em>{% elif e.answer %}{{ e.answer }}{% else %}<span class="muted">No answer given.</span>{% endif %}</div>
-    {% if e.show_key and e.key_text %}<p class="small mt"><strong>Correct answer:</strong> {{ e.key_text }}</p>{% endif %}
-  {% endif %}
-  {% if e.show_key and q.explanation %}<div class="feedback"><strong>{{ 'Rubric / explanation' if grading else 'Explanation' }}:</strong> {{ q.explanation|richtext }}</div>{% endif %}
-  {% if r and r.feedback and not grading %}<div class="feedback"><strong>Instructor feedback:</strong> {{ r.feedback|richtext }}</div>{% endif %}
-  {% if grading %}
-  <div class="form-row mt">
-    <div class="field"><label for="p{{ e.item.id }}">Points (max {{ e.item.effective_points|num }})</label>
-      <input class="points" id="p{{ e.item.id }}" type="number" step="any" min="0" max="{{ e.item.effective_points }}" name="points_{{ e.item.id }}" value="{{ r.points_awarded|num if r and r.points_awarded is not none and not r.needs_grading else '' }}" placeholder="{{ 'required' if r and r.needs_grading else '' }}">
-      {% if r and r.manually_graded and r.graded_by %}<div class="help">Graded by {{ r.graded_by.display_name }}</div>{% endif %}</div>
-    <div class="field" style="grid-column: span 3"><label for="f{{ e.item.id }}">Feedback to student</label><textarea id="f{{ e.item.id }}" name="feedback_{{ e.item.id }}" rows="2" style="min-height:2.5rem">{{ r.feedback if r else '' }}</textarea></div>
+      {% if not e.selected %}<p class="key-line muted">No answer given.</p>{% endif %}
+    {% else %}
+      <div class="answer-box">{% if e.answer == '[paper]' %}<em>Answered on paper.</em>{% elif e.answer %}{{ e.answer }}{% else %}<span class="muted">No answer given.</span>{% endif %}</div>
+      {% if e.show_key and e.key_text %}<p class="key-line"><strong>Correct answer:</strong> {{ e.key_text }}</p>{% endif %}
+    {% endif %}
+    {% if e.show_key and q.explanation %}<div class="explanation"><span class="label">{{ 'Rubric' if grading else 'Explanation' }}</span>{{ q.explanation|richtext }}</div>{% endif %}
+    {% if r and r.feedback and not grading %}<div class="margin-note"><span class="label">Instructor's note</span>{{ r.feedback }}</div>{% endif %}
+    {% if grading %}
+    <div class="form-row mt">
+      <div class="field"><label for="p{{ e.item.id }}">Points, out of {{ e.item.effective_points|num }}</label>
+        <input class="points" id="p{{ e.item.id }}" type="number" step="any" min="0" max="{{ e.item.effective_points }}" name="points_{{ e.item.id }}" value="{{ r.points_awarded|num if r and r.points_awarded is not none and not r.needs_grading else '' }}" placeholder="{{ 'required' if r and r.needs_grading else '' }}">
+        {% if r and r.manually_graded and r.graded_by %}<div class="help">Graded by {{ r.graded_by.display_name }}</div>{% endif %}</div>
+      <div class="field" style="grid-column: span 3"><label for="f{{ e.item.id }}">Note to the student</label><textarea id="f{{ e.item.id }}" name="feedback_{{ e.item.id }}" rows="2" style="min-height:2.6rem">{{ r.feedback if r else '' }}</textarea></div>
+    </div>
+    {% endif %}
   </div>
-  {% endif %}
 </div>
 {% endfor %}

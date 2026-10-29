@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Settings{% endblock %}
 {% block content %}
-<div class="page-header"><h1>Platform settings</h1></div>
+<div class="page-head"><h1>Platform settings</h1></div>
 {% include "admin/_nav.html" %}
-<form method="post" class="card narrow">
+<form method="post" class="section narrow">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <h2>Institution</h2>
   <div class="form-row">
@@ -29,7 +29,7 @@
   <div class="field"><label for="dr">Role given to new YunoHost users</label>
     <select id="dr" name="ldap_default_role"><option value="student" {{ 'selected' if values.ldap_default_role == 'student' }}>Student</option><option value="instructor" {{ 'selected' if values.ldap_default_role == 'instructor' }}>Instructor</option></select>
     <div class="help">Administrators can change anyone's role later from the Users page.</div></div>
-  <p class="help">LDAP sign-in: {{ 'enabled' if ldap_enabled else 'disabled' }} · YunoHost SSO: {{ 'enabled' if sso_enabled else 'disabled' }} (configured by the YunoHost package).</p>
+  <p class="help">Sign-in with YunoHost passwords is {{ 'on' if ldap_enabled else 'off' }} and portal single sign-on is {{ 'on' if sso_enabled else 'off' }}; both are set by the YunoHost package.</p>
   <button class="btn btn-primary" type="submit">Save settings</button>
 </form>
 {% endblock %}

@@ -75,7 +75,7 @@
       var link = document.querySelector('.qnav a[data-item="' + id + '"]');
       var on = !btn.classList.contains("btn-primary");
       btn.classList.toggle("btn-primary", on);
-      btn.textContent = on ? "★ Flagged" : "☆ Flag for review";
+      btn.textContent = on ? "Flagged" : "Flag for review";
       if (link) link.classList.toggle("flagged", on);
     });
   });

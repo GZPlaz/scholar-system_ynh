@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Courses{% endblock %}
 {% block content %}
-<div class="page-header">
-  <div><h1>Courses</h1><p class="subtitle">{{ 'All courses' if current_user.is_admin else ('Courses you teach' if current_user.is_staff else 'Courses you are enrolled in') }}</p></div>
+<div class="page-head">
+  <div><h1>Courses</h1><p class="facts">{{ 'All courses' if current_user.is_admin else ('Courses you teach' if current_user.is_staff else 'Courses you are enrolled in') }}</p></div>
   <div class="actions">
     <a class="btn btn-sm" href="{{ url_for('courses.index', archived=0 if show_archived else 1) }}">{{ 'Hide' if show_archived else 'Show' }} archived</a>
     {% if current_user.is_staff %}<a class="btn btn-primary" href="{{ url_for('courses.edit') }}">New course</a>{% endif %}
   </div>
 </div>
-<div class="card table-wrap" style="padding:0">
+<div class="table-wrap">
 <table class="table">
   <thead><tr><th>Code</th><th>Title</th><th>Term</th><th>Instructors</th><th class="num">Students</th><th class="num">Assessments</th></tr></thead>
   <tbody>

@@ -138,7 +138,7 @@ def item_analysis(assessment):
                 flags.append("Very easy")
         if rpb is not None and len(graded) >= 5:
             if rpb < 0:
-                flags.append("Negative discrimination — check the key")
+                flags.append("Negative discrimination: check the key")
             elif rpb < 0.20:
                 flags.append("Low discrimination")
 

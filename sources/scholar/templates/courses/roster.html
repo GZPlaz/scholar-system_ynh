@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% from "_macros.html" import course_tabs, post_button with context %}
-{% block title %}Roster · {{ course.code }}{% endblock %}
+{% block title %}Roster, {{ course.code }}{% endblock %}
 {% block content %}
 {{ course_tabs(course, 'roster') }}
 <div class="layout-side">
-  <div class="card table-wrap" style="padding:0">
+  <div class="table-wrap">
     <table class="table">
       <thead><tr><th>Student</th><th>Username</th><th>Student ID</th><th>Email</th><th></th></tr></thead>
       <tbody>
@@ -21,7 +21,7 @@
     </table>
   </div>
   <div>
-    <div class="card">
+    <div class="section">
       <h3>Enroll students</h3>
       <form method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -31,7 +31,7 @@
         <button class="btn btn-primary btn-sm" type="submit">Enroll</button>
       </form>
     </div>
-    <div class="card">
+    <div class="section">
       <h3>Import roster (CSV)</h3>
       <form method="post" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -40,10 +40,10 @@
         <button class="btn btn-sm" type="submit">Import</button>
       </form>
     </div>
-    <div class="card">
+    <div class="section">
       <h3>Instructors</h3>
       <ul class="small">{% for i in course.instructors %}<li>{{ i.display_name }} ({{ i.username }})
-        {% if current_user.is_admin %}{{ post_button(url_for('courses.roster', course_id=course.id), '×', cls='btn-link', fields={'action': 'remove_instructor', 'username': i.username}) }}{% endif %}</li>
+        {% if current_user.is_admin %}{{ post_button(url_for('courses.roster', course_id=course.id), 'remove', cls='btn-link small', title='Remove ' ~ i.display_name ~ ' as instructor', fields={'action': 'remove_instructor', 'username': i.username}) }}{% endif %}</li>
       {% else %}<li class="muted">None assigned</li>{% endfor %}</ul>
       {% if current_user.is_admin %}
       <form method="post" class="actions">

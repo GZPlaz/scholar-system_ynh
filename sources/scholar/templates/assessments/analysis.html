@@ -1,64 +1,68 @@
 {% extends "base.html" %}
-{% from "_macros.html" import assessment_tabs, histogram with context %}
-{% block title %}Item analysis · {{ assessment.title }}{% endblock %}
+{% from "_macros.html" import assessment_tabs with context %}
+{% block title %}Item analysis, {{ assessment.title }}{% endblock %}
 {% block content %}
-{% call assessment_tabs(assessment, 'analysis') %}<a class="btn" href="{{ url_for('assessments.analysis', assessment_id=assessment.id, format='csv') }}">Export CSV</a>{% endcall %}
+{% call assessment_tabs(assessment, 'analysis') %}<a class="btn" href="{{ url_for('assessments.analysis', assessment_id=assessment.id, format='csv') }}">Download CSV</a>{% endcall %}
 {% if data.n == 0 %}
-<div class="card empty">Item analysis appears once students have submitted the assessment.</div>
+<p class="empty">Item analysis appears once students have submitted the assessment.</p>
 {% else %}
-<div class="grid grid-4">
-  <div class="stat"><div class="value">{{ data.n }}</div><div class="label">Students analysed</div></div>
-  <div class="stat"><div class="value">{{ data.summary.mean|pct }}</div><div class="label">Mean score</div></div>
-  <div class="stat"><div class="value">{{ '%.2f'|format(data.alpha) if data.alpha is not none else '—' }}</div><div class="label">Reliability (Cronbach's α / KR-20)</div></div>
-  <div class="stat"><div class="value">{{ data.sem|num if data.sem is not none else '—' }}</div><div class="label">Std. error of measurement (pts)</div></div>
+<div class="tally">
+  <div><b>{{ data.n }}</b><span>students analysed</span></div>
+  <div><b>{{ data.summary.mean|pct }}</b><span>mean score</span></div>
+  <div><b>{{ '%.2f'|format(data.alpha) if data.alpha is not none else '–' }}</b><span>reliability (Cronbach's &alpha;, equal to KR-20 for right/wrong items)</span></div>
+  <div><b>{{ data.sem|num if data.sem is not none else '–' }}</b><span>standard error of measurement, in points</span></div>
 </div>
-<div class="card mt">
-  <div class="card-header"><h2>Items</h2>
-    <span class="small muted"><strong>p</strong> = difficulty (share of points earned) · <strong>r<sub>pb</sub></strong> = corrected point-biserial · <strong>D</strong> = upper − lower 27% difference</span></div>
+<section class="section">
+  <div class="section-head"><h2>Questions</h2></div>
+  <p class="small muted"><strong>p</strong> is difficulty, the share of available points students earned. <strong>r<sub>pb</sub></strong> is the corrected point-biserial: how well the question separates students who did well on the rest of the test from those who didn't. <strong>D</strong> is the difference between the top and bottom 27% of students.</p>
   <div class="table-wrap">
   <table class="table">
-    <thead><tr><th>#</th><th>Question</th><th>Standards</th><th class="num">p</th><th class="num">r<sub>pb</sub></th><th class="num">D</th><th class="num">Omitted</th><th>Flags</th></tr></thead>
+    <thead><tr><th class="num">#</th><th>Question</th><th>Standards</th><th class="num">p</th><th class="num">r<sub>pb</sub></th><th class="num">D</th><th class="num">Omitted</th><th>Check</th></tr></thead>
     <tbody>
     {% for e in data['items'] %}
     <tr>
-      <td><a href="#item-{{ e.number }}">{{ e.number }}</a></td>
-      <td>{{ e.question.stem_preview }} <span class="small muted">({{ e.question.type_label }})</span></td>
+      <td class="num"><a href="#item-{{ e.number }}">{{ e.number }}</a></td>
+      <td>{{ e.question.stem_preview }} <span class="qtype">({{ e.question.type_label|lower }})</span></td>
       <td>{% for s in e.standards %}<span class="tag">{{ s.code }}</span>{% endfor %}</td>
-      <td class="num">{% if e.p_value is not none %}{{ '%.2f'|format(e.p_value) }}<div class="pbar"><span style="width:{{ (e.p_value * 100)|round }}%"></span></div>{% else %}—{% endif %}</td>
-      <td class="num">{{ '%.2f'|format(e.rpb) if e.rpb is not none else '—' }}</td>
-      <td class="num">{{ '%.2f'|format(e.d_index) if e.d_index is not none else '—' }}</td>
+      <td class="num">{% if e.p_value is not none %}{{ '%.2f'|format(e.p_value) }}<div class="pbar"><span style="width:{{ (e.p_value * 100)|round }}%"></span></div>{% else %}–{% endif %}</td>
+      <td class="num">{{ '%.2f'|format(e.rpb) if e.rpb is not none else '–' }}</td>
+      <td class="num">{{ '%.2f'|format(e.d_index) if e.d_index is not none else '–' }}</td>
       <td class="num">{{ e.omitted }}</td>
-      <td>{% for f in e.flags %}<span class="badge {{ 'badge-red' if 'key' in f or 'Low' in f else ('badge-blue' if 'grading' in f else 'badge-amber') }}">{{ f }}</span> {% endfor %}</td>
+      <td class="small">{% for f in e.flags %}<div class="{{ 'attn' if 'key' in f or 'Low' in f or 'grading' in f }}">{{ f }}</div>{% endfor %}</td>
     </tr>
     {% endfor %}
     </tbody>
   </table>
   </div>
-</div>
-<h2>Response distribution</h2>
-<div class="grid grid-2">
-{% for e in data['items'] if e.choices %}
-  <div class="card" id="item-{{ e.number }}">
-    <h3>{{ e.number }}. {{ e.question.stem_preview }}</h3>
-    <table class="table compact">
-      <thead><tr><th>Option</th><th class="num">Chosen</th><th class="num">%</th><th class="num">Upper</th><th class="num">Lower</th></tr></thead>
-      <tbody>
-      {% for c in e.choices %}
-      <tr{% if c.flag %} title="Check this option: strong students chose it more than weak students{{ ' (but it is wrong)' if not c.correct else ' less than weak students' }}"{% endif %}>
-        <td>{{ c.letter }}. {{ c.text|truncate(60) }} {% if c.correct %}<span class="badge badge-green">key</span>{% endif %}{% if c.flag %} <span class="badge badge-red">!</span>{% endif %}</td>
-        <td class="num">{{ c.count }}</td>
-        <td class="num"><div class="pbar"><span style="width:{{ c.pct|round }}%; {{ 'background: var(--success)' if c.correct }}"></span></div>{{ c.pct|round|int }}%</td>
-        <td class="num">{{ c.upper }}</td><td class="num">{{ c.lower }}</td>
-      </tr>
-      {% endfor %}
-      <tr><td class="muted">Omitted</td><td class="num">{{ e.omitted }}</td><td colspan="3"></td></tr>
-      </tbody>
-    </table>
+</section>
+<section class="section">
+  <h2>How students answered</h2>
+  <p class="small muted">For each choice question: how many picked each option, and how many of the top and bottom 27% did. A wrong option that strong students prefer usually means the key or the wording needs a second look.</p>
+  <div class="grid grid-2">
+  {% for e in data['items'] if e.choices %}
+    <div id="item-{{ e.number }}" style="margin-bottom: var(--s5)">
+      <h3>{{ e.number }}. <span class="exam" style="font-weight:500">{{ e.question.stem_preview }}</span></h3>
+      <table class="table compact">
+        <thead><tr><th>Option</th><th class="num">Chosen</th><th class="num">Share</th><th class="num">Top</th><th class="num">Bottom</th></tr></thead>
+        <tbody>
+        {% for c in e.choices %}
+        <tr{% if c.flag %} title="Strong students chose this {{ 'more' if not c.correct else 'less' }} often than weak students"{% endif %}>
+          <td>{{ c.letter }}. {{ c.text|truncate(60) }}{% if c.correct %} <strong class="small">(key)</strong>{% endif %}{% if c.flag %} <span class="attn small">check</span>{% endif %}</td>
+          <td class="num">{{ c.count }}</td>
+          <td class="num">{{ c.pct|round|int }}%<div class="pbar {{ 'key' if c.correct }}"><span style="width:{{ c.pct|round }}%"></span></div></td>
+          <td class="num">{{ c.upper }}</td><td class="num">{{ c.lower }}</td>
+        </tr>
+        {% endfor %}
+        <tr><td class="muted">No answer</td><td class="num">{{ e.omitted }}</td><td colspan="3"></td></tr>
+        </tbody>
+      </table>
+    </div>
+  {% endfor %}
   </div>
-{% endfor %}
-</div>
-<div class="card small muted">
-  <strong>Reading this report.</strong> Items with <em>p</em> below 0.30 are very hard and above 0.90 very easy. A point-biserial below 0.20 means the item barely separates strong from weak students; a negative value usually signals a mis-keyed or ambiguous item — check the key, fix it in the question editor and results are re-scored automatically. Reliability above 0.70 is generally acceptable for classroom tests.
-</div>
+</section>
+<section class="section">
+  <h2>Reading this report</h2>
+  <p class="small">A question with p below 0.30 is very hard; above 0.90, very easy. A point-biserial below 0.20 means the question barely separates strong from weak students, and a negative one usually points to a mis-keyed or ambiguous question: fix the key in the question editor and every attempt is re-scored. For classroom tests, reliability above 0.70 is generally acceptable.</p>
+</section>
 {% endif %}
 {% endblock %}

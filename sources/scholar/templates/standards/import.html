@@ -3,8 +3,8 @@
 {% block main_class %}narrow{% endblock %}
 {% block content %}
 <div class="breadcrumb"><a href="{{ url_for('standards.index') }}">Standards</a></div>
-<div class="page-header"><h1>Import standards</h1></div>
-<form method="post" enctype="multipart/form-data" class="card">
+<div class="page-head"><h1>Import standards</h1></div>
+<form method="post" enctype="multipart/form-data" class="section">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="field"><label for="file">CSV file</label><input type="file" id="file" name="file" accept=".csv,text/csv"></div>
   <div class="field"><label for="csv_text">…or paste CSV text</label><textarea id="csv_text" name="csv_text"></textarea></div>

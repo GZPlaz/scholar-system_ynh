@@ -2,27 +2,27 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Answer sheets — {{ assessment.title }}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Answer sheets, {{ assessment.title }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v={{ app_version }}">
-  <style>body { background: #fff; color: #000; } :root { color-scheme: light; } .bubble-sheet { padding: 1.5rem; }</style>
 </head>
 <body>
-<div class="no-print" style="padding: .75rem 1.5rem; background: #f0f2f5; display:flex; gap:.5rem; align-items:center">
-  <button class="btn btn-primary" data-print>Print {{ students|length }} sheet(s)</button>
+<div class="print-toolbar no-print">
+  <button class="btn btn-primary" data-print>Print {{ students|length }} sheet{{ 's' if students|length != 1 }}</button>
   <a class="btn" href="{{ url_for('assessments.paper', assessment_id=assessment.id) }}">Back</a>
 </div>
 {% for s in students %}
 <div class="bubble-sheet">
   <div class="paper-header">
     <div>
-      <div><strong>{{ institution_name }}</strong> · {{ assessment.course.code }}</div>
-      <h2 style="margin:.2rem 0">{{ assessment.title }} — Answer sheet</h2>
-      <div class="small">Fill one bubble per question completely with a dark pen or pencil. For “select all” questions fill every correct bubble.</div>
+      <div class="small"><strong>{{ institution_name }}</strong>, {{ assessment.course.code }}</div>
+      <h2>{{ assessment.title }}: answer sheet</h2>
+      <div class="small">Fill one bubble per question completely, in pencil or dark pen. For “mark every correct answer” questions, fill every bubble that applies.</div>
     </div>
-    <div style="line-height:2.2; min-width: 280px">
-      Name: {% if s %}<strong>{{ s.display_name }}</strong>{% else %}<span class="line"></span>{% endif %}<br>
-      Username: {% if s %}<strong>{{ s.username }}</strong>{% else %}<span class="line"></span>{% endif %}<br>
-      Student ID: {% if s and s.student_number %}<strong>{{ s.student_number }}</strong>{% else %}<span class="line"></span>{% endif %}
+    <div class="fields small">
+      Name {% if s %}<strong>{{ s.display_name }}</strong>{% else %}<span class="line"></span>{% endif %}<br>
+      Username {% if s %}<strong>{{ s.username }}</strong>{% else %}<span class="line"></span>{% endif %}<br>
+      Student ID {% if s and s.student_number %}<strong>{{ s.student_number }}</strong>{% else %}<span class="line"></span>{% endif %}
     </div>
   </div>
   <div class="bubble-cols">
@@ -34,7 +34,7 @@
     </div>
   {% endfor %}
   </div>
-  <p class="small" style="margin-top:1.5rem">Essay and written answers go in the test booklet. Scored by: ________ &nbsp; Total: ______ / {{ assessment.max_score|num }}</p>
+  <p class="sheet-foot">Essay and written answers go in the booklet. Scored by ________&nbsp;&nbsp; Total ______ of {{ assessment.max_score|num }}</p>
 </div>
 {% endfor %}
 <script src="{{ url_for('static', filename='js/app.js') }}?v={{ app_version }}"></script>

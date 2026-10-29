@@ -3,14 +3,15 @@
 {% block content %}
 {% set s = state %}
 <div class="breadcrumb">{% if assessment %}<a href="{{ url_for('assessments.detail', assessment_id=assessment.id) }}">{{ assessment.title }}</a>{% else %}<a href="{{ url_for('questions.index') }}">Question bank</a>{% endif %}</div>
-<div class="page-header"><h1>{{ 'Edit question' if question else 'New question' }}</h1>
-  {% if assessment and not question %}<p class="subtitle">It will be added to “{{ assessment.title }}”.</p>{% endif %}</div>
+<div class="page-head"><h1>{{ 'Edit question' if question else 'New question' }}</h1>
+  {% if assessment and not question %}<p class="facts">It will be added to “{{ assessment.title }}”.</p>{% endif %}</div>
 {% if in_use %}<div class="flash flash-info">Students have already answered this question. You can fix the text or the answer key — submitted attempts are re-scored automatically — but you cannot change its type or remove options.</div>{% endif %}
 <form method="post" id="question-form" class="layout-side">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   {% if assessment %}<input type="hidden" name="assessment_id" value="{{ assessment.id }}">{% endif %}
   <div>
-    <div class="card">
+    <div class="section">
+      <h3>Question</h3>
       <div class="form-row">
         <div class="field"><label for="qtype">Question type</label>
           <select id="qtype" name="qtype" {{ 'disabled' if in_use }}>{% for k, v in QTYPES.items() %}<option value="{{ k }}" {{ 'selected' if s.qtype == k }}>{{ v }}</option>{% endfor %}</select>
@@ -18,42 +19,42 @@
         <div class="field"><label for="points">Points</label><input type="number" id="points" name="points" min="0.01" step="any" value="{{ s.points }}" required></div>
       </div>
       <div class="field"><label for="stem">Question text</label>
-        <textarea id="stem" name="stem" rows="6" required>{{ s.stem }}</textarea>
+        <textarea id="stem" name="stem" rows="6" class="answer-input" required>{{ s.stem }}</textarea>
         <div class="help">Blank lines separate paragraphs. Use <code>**bold**</code> and <code>`code`</code> for simple formatting.</div></div>
     </div>
 
-    <div class="card qsection" data-types="mc ms">
-      <div class="card-header"><h3>Answer options</h3><span class="help" data-types="mc">Tick the single correct option.</span><span class="help" data-types="ms">Tick every correct option.</span></div>
+    <div class="section qsection" data-types="mc ms">
+      <div class="section-head"><h3>Answer options</h3><span class="help" data-types="mc">Mark exactly one option as correct.</span><span class="help" data-types="ms">Mark every option that is correct.</span></div>
       <div id="choices">
         {% set rows = s.rows if s.rows else [{'id': '', 'text': '', 'correct': False}] * 4 %}
         {% for r in rows %}
         <div class="choice-row actions" style="margin-bottom:.4rem; flex-wrap:nowrap">
           <input type="hidden" name="choice_id" value="{{ r.id }}">
-          <span class="letter qnum" style="width:1.5rem">{{ loop.index0|letter }}</span>
-          <label class="check" style="margin:0" title="Correct"><input type="checkbox" class="correct-mark" name="correct" value="{{ loop.index0 }}" {{ 'checked' if r.correct }}><span class="sr-only">Correct</span></label>
-          <input type="text" name="choice_text" value="{{ r.text }}" placeholder="Option text">
-          <button type="button" class="btn btn-sm remove-choice" title="Remove option" aria-label="Remove option">×</button>
+          <span class="letter bubble" aria-hidden="true">{{ loop.index0|letter }}</span>
+          <input type="text" name="choice_text" value="{{ r.text }}" placeholder="Option text" aria-label="Option text">
+          <label class="check small" style="margin:0" title="Mark as a correct answer"><input type="checkbox" class="correct-mark" name="correct" value="{{ loop.index0 }}" {{ 'checked' if r.correct }}>correct</label>
+          <button type="button" class="btn btn-sm remove-choice" title="Remove this option" aria-label="Remove this option">Remove</button>
         </div>
         {% endfor %}
       </div>
-      <button type="button" class="btn btn-sm" id="add-choice">+ Add option</button>
+      <button type="button" class="btn btn-sm" id="add-choice">Add an option</button>
       <label class="check mt qsection" data-types="ms"><input type="checkbox" name="partial_credit" value="1" {{ 'checked' if s.partial_credit }}> Partial credit (each correct pick earns a share, each wrong pick cancels one)</label>
     </div>
 
-    <div class="card qsection" data-types="tf">
+    <div class="section qsection" data-types="tf">
       <h3>Correct answer</h3>
       <label class="check"><input type="radio" name="tf_answer" value="true" {{ 'checked' if s.tf == 'true' }}> True</label>
       <label class="check"><input type="radio" name="tf_answer" value="false" {{ 'checked' if s.tf != 'true' }}> False</label>
     </div>
 
-    <div class="card qsection" data-types="short">
+    <div class="section qsection" data-types="short">
       <h3>Accepted answers</h3>
       <div class="field"><textarea name="accepted_answers" rows="4" placeholder="One accepted answer per line">{{ s.accepted }}</textarea>
         <div class="help">Extra spaces are ignored. Responses that match none of these score 0 (you can still override on the grading screen).</div></div>
       <label class="check"><input type="checkbox" name="case_sensitive" value="1" {{ 'checked' if s.case_sensitive }}> Case sensitive</label>
     </div>
 
-    <div class="card qsection" data-types="numeric">
+    <div class="section qsection" data-types="numeric">
       <h3>Numeric answer</h3>
       <div class="form-row">
         <div class="field"><label for="na">Correct value</label><input type="text" inputmode="decimal" id="na" name="numeric_answer" value="{{ s.numeric_answer }}"></div>
@@ -61,19 +62,20 @@
       </div>
     </div>
 
-    <div class="card qsection" data-types="essay">
+    <div class="section qsection" data-types="essay">
       <h3>Essay / constructed response</h3>
       <p class="muted mb0">Students type a free response. It is placed in the grading queue for manual scoring. Use the explanation below as a rubric or model answer.</p>
     </div>
 
-    <div class="card">
-      <div class="field"><label for="explanation">Explanation / rubric</label><textarea id="explanation" name="explanation" rows="3">{{ s.explanation }}</textarea>
+    <div class="section">
+      <h3>Explanation or rubric</h3>
+      <div class="field"><label for="explanation" class="sr-only">Explanation or rubric</label><textarea id="explanation" name="explanation" rows="3">{{ s.explanation }}</textarea>
         <div class="help">Shown to students after submission when the assessment reveals correct answers; shown to graders.</div></div>
     </div>
   </div>
 
   <div>
-    <div class="card">
+    <div class="section">
       <h3>Alignment</h3>
       <div class="field"><label>Standards</label>
         <input type="search" class="filter-list" data-target="#std-list" placeholder="Filter standards…" style="margin-bottom:.4rem">
@@ -85,10 +87,10 @@
       <div class="field"><label for="topic">Topic</label><input type="text" id="topic" name="topic" value="{{ s.topic }}" maxlength="120"></div>
       <label class="check"><input type="checkbox" name="shared" value="1" {{ 'checked' if s.shared }}> Share with other instructors</label>
     </div>
-    <div class="card">
-      <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center">Save question</button>
-      {% if not question %}<button class="btn mt" type="submit" name="save_and_new" value="1" style="width:100%; justify-content:center">Save and add another</button>{% endif %}
-      <a class="btn mt" style="width:100%; justify-content:center" href="{{ url_for('assessments.detail', assessment_id=assessment.id) if assessment else url_for('questions.index') }}">Cancel</a>
+    <div class="section plain">
+      <button class="btn btn-primary wide" type="submit">Save question</button>
+      {% if not question %}<button class="btn wide mt" type="submit" name="save_and_new" value="1">Save and write another</button>{% endif %}
+      <a class="btn wide mt" href="{{ url_for('assessments.detail', assessment_id=assessment.id) if assessment else url_for('questions.index') }}">Cancel</a>
     </div>
   </div>
 </form>

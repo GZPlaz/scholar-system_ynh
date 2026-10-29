@@ -2,8 +2,8 @@
 {% from "_macros.html" import post_button, pagination_nav with context %}
 {% block title %}Question bank{% endblock %}
 {% block content %}
-<div class="page-header">
-  <div><h1>Question bank</h1><p class="subtitle">{{ pagination.total }} question(s){{ ' (archived)' if filters.archived }}</p></div>
+<div class="page-head">
+  <div><h1>Question bank</h1><p class="facts">{{ pagination.total }} question(s){{ ' (archived)' if filters.archived }}</p></div>
   <div class="actions">
     <a class="btn" href="{{ url_for('questions.import_csv') }}">Import CSV</a>
     <a class="btn btn-primary" href="{{ url_for('questions.edit') }}">New question</a>
@@ -17,7 +17,7 @@
   <label class="check" style="margin:0"><input type="checkbox" name="archived" value="1" {{ 'checked' if filters.archived }}> Archived</label>
   <button class="btn" type="submit">Filter</button>
 </form>
-<div class="card table-wrap" style="padding:0">
+<div class="table-wrap">
 <table class="table">
   <thead><tr><th>Question</th><th>Type</th><th>Standards</th><th class="num">Pts</th><th>Author</th><th></th></tr></thead>
   <tbody>

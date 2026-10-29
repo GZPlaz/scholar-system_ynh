@@ -16,9 +16,13 @@ Scholar System is a self-hosted testing platform in the spirit of Mastery Manage
 - **Reports** — score distribution, item analysis (p-value, point-biserial, D-index, distractors, Cronbach's α / KR-20, SEM), gradebook, standards-mastery heat map, student reports, CSV exports everywhere.
 - **Administration** — roles, CSV user/roster import, mastery thresholds, time zone, audit log.
 
-| Item analysis | Standards mastery | Taking a test |
-|---|---|---|
-| ![](doc/screenshots/06-analysis.png) | ![](doc/screenshots/07-mastery.png) | ![](doc/screenshots/13-take.png) |
+| Taking a test | Reviewing a marked paper | Standards mastery | Item analysis |
+|---|---|---|---|
+| ![](doc/screenshots/13-take.png) | ![](doc/screenshots/14-review.png) | ![](doc/screenshots/07-mastery.png) | ![](doc/screenshots/06-analysis.png) |
+
+### Design
+
+The interface is modelled on the paperwork of the exam room: answer sheets printed in dropout-green ink, graphite pencil marks, the grader's red pen, and exam papers set in a scientific serif. Choices are answer bubbles you fill in; questions are set in STIX Two Text and the interface in Public Sans (both SIL OFL, bundled in `static/fonts/`, no CDN). The full design contract (colours, type, layout rules, and the defaults it deliberately avoids) is in [DESIGN.md](DESIGN.md).
 
 ## YunoHost integration
 
@@ -58,6 +62,7 @@ manifest.toml        YunoHost v2 manifest (resources: user, dir, port, apt, Post
 conf/                nginx, systemd, gunicorn and app configuration templates
 scripts/             install / remove / upgrade / backup / restore / change_url
 sources/             the application itself (Flask package `scholar`, manage.py, wsgi.py)
+DESIGN.md            the UI design contract every template follows
 tests/               end-to-end test suite (pytest)
 doc/                 YunoHost description, admin docs, screenshots
 ```

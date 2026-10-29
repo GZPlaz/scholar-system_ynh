@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Import users{% endblock %}
 {% block content %}
-<div class="page-header"><h1>Import users</h1></div>
+<div class="page-head"><h1>Import users</h1></div>
 {% include "admin/_nav.html" %}
 <div class="grid grid-2">
-<div class="card">
+<div class="section">
   <h2>Upload a CSV file</h2>
   <form method="post" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -14,7 +14,7 @@
     <p class="help mt">Existing usernames are updated (name, email, ID, role). If new local accounts get generated passwords, a CSV listing them is downloaded automatically — distribute it securely.</p>
   </form>
 </div>
-<div class="card">
+<div class="section">
   <h2>Format</h2>
   <p>First row must be a header. Recognised columns (only <code>username</code> is required):</p>
   <table class="table compact">

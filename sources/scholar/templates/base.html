@@ -4,20 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>{% block title %}{% endblock %}{% if self.title() %} · {% endif %}Scholar · {{ institution_name }}</title>
+  <title>{% block title %}{% endblock %}{% if self.title() %}, {% endif %}Scholar, {{ institution_name }}</title>
+  <link rel="preload" href="{{ url_for('static', filename='fonts/public-sans-latin-wght-normal.woff2') }}" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v={{ app_version }}">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231f4e8c'/%3E%3Ctext x='16' y='23' font-size='20' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3ES%3C/text%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%231f2123' stroke='%233b6620' stroke-width='3'/%3E%3C/svg%3E">
   {% block head %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
-<header class="topbar">
-  <div class="topbar-inner">
-    <a class="brand" href="{{ url_for('main.dashboard') }}"><span class="brand-mark">S</span> Scholar <small>· {{ institution_name }}</small></a>
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="wordmark" href="{{ url_for('main.dashboard') }}"><strong>Scholar</strong><span>{{ institution_name }}</span></a>
     {% if current_user.is_authenticated %}
     {% set ep = request.endpoint or '' %}
-    <nav class="nav" aria-label="Main">
+    <nav class="site-nav" aria-label="Main">
       <a href="{{ url_for('main.dashboard') }}" class="{{ 'active' if ep == 'main.dashboard' }}">Dashboard</a>
-      <a href="{{ url_for('courses.index') }}" class="{{ 'active' if ep.startswith('courses.') or ep.startswith('reports.') }}">Courses</a>
+      <a href="{{ url_for('courses.index') }}" class="{{ 'active' if ep.startswith('courses.') or ep.startswith('reports.') or ep.startswith('assessments.') }}">Courses</a>
       {% if current_user.is_staff %}
       <a href="{{ url_for('questions.index') }}" class="{{ 'active' if ep.startswith('questions.') }}">Question bank</a>
       <a href="{{ url_for('standards.index') }}" class="{{ 'active' if ep.startswith('standards.') }}">Standards</a>
@@ -28,12 +29,11 @@
       <a href="{{ url_for('admin.users') }}" class="{{ 'active' if ep.startswith('admin.') }}">Administration</a>
       {% endif %}
     </nav>
-    <div class="userbox">
-      <a href="{{ url_for('main.account') }}" title="My account">{{ current_user.display_name }}</a>
-      <span class="badge">{{ ROLES[current_user.role] }}</span>
+    <div class="who">
+      <span><a href="{{ url_for('main.account') }}" title="My account">{{ current_user.display_name }}</a> <span class="role">({{ ROLES[current_user.role]|lower }})</span></span>
       <form method="post" action="{{ url_for('auth.logout') }}" class="inline">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit">Sign out</button>
+        <button type="submit" class="btn btn-sm">Sign out</button>
       </form>
     </div>
     {% endif %}
@@ -49,7 +49,7 @@
   {% endwith %}
   {% block content %}{% endblock %}
 </main>
-<footer class="footer">Scholar System {{ app_version }} · {{ institution_name }}</footer>
+<footer class="site-footer"><span>{{ institution_name }}</span><span>Scholar System {{ app_version }}</span></footer>
 <script src="{{ url_for('static', filename='js/app.js') }}?v={{ app_version }}"></script>
 {% block scripts %}{% endblock %}
 </body>

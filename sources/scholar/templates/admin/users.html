@@ -2,8 +2,8 @@
 {% from "_macros.html" import post_button, pagination_nav with context %}
 {% block title %}Users{% endblock %}
 {% block content %}
-<div class="page-header">
-  <div><h1>Administration</h1><p class="subtitle">{{ counts.get('admin', 0) }} administrators · {{ counts.get('instructor', 0) }} instructors · {{ counts.get('student', 0) }} students</p></div>
+<div class="page-head">
+  <div><h1>Administration</h1><p class="facts"><span><strong>{{ counts.get('admin', 0) }}</strong> administrators</span><span><strong>{{ counts.get('instructor', 0) }}</strong> instructors</span><span><strong>{{ counts.get('student', 0) }}</strong> students</span></p></div>
   <div class="actions"><a class="btn btn-primary" href="{{ url_for('admin.edit_user') }}">Add user</a></div>
 </div>
 {% include "admin/_nav.html" %}
@@ -12,16 +12,16 @@
   <select name="role"><option value="">All roles</option>{% for k, v in ROLES.items() %}<option value="{{ k }}" {{ 'selected' if role == k }}>{{ v }}</option>{% endfor %}</select>
   <button class="btn" type="submit">Filter</button>
 </form>
-<div class="card table-wrap" style="padding:0">
+<div class="table-wrap">
 <table class="table">
   <thead><tr><th>Username</th><th>Name</th><th>Email</th><th>Student ID</th><th>Role</th><th>Sign-in</th><th>Last login</th><th></th></tr></thead>
   <tbody>
   {% for u in pagination.items %}
   <tr>
-    <td><a href="{{ url_for('admin.edit_user', user_id=u.id) }}">{{ u.username }}</a>{% if not u.active %} <span class="badge badge-red">Inactive</span>{% endif %}</td>
+    <td><a href="{{ url_for('admin.edit_user', user_id=u.id) }}">{{ u.username }}</a>{% if not u.active %} <span class="badge badge-red">inactive</span>{% endif %}</td>
     <td>{{ u.full_name }}</td><td class="small">{{ u.email }}</td><td>{{ u.student_number }}</td>
     <td>{{ ROLES[u.role] }}</td>
-    <td><span class="badge {{ 'badge-blue' if u.auth_source == 'ldap' }}">{{ 'YunoHost' if u.auth_source == 'ldap' else 'Local' }}</span></td>
+    <td>{{ 'YunoHost' if u.auth_source == 'ldap' else 'Local' }}</td>
     <td class="small">{{ u.last_login_at|dt }}</td>
     <td class="right nowrap">
       {% if u.auth_source == 'local' %}{{ post_button(url_for('admin.reset_password', user_id=u.id), 'Reset password', confirm='Generate a new temporary password for ' ~ u.username ~ '?') }}{% endif %}

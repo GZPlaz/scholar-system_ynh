@@ -2,25 +2,26 @@
 {% from "_macros.html" import course_tabs, status_badge with context %}
 {% block title %}{{ course.code }}{% endblock %}
 {% block content %}
-{% call course_tabs(course, 'overview') %}<a class="btn btn-primary" href="{{ url_for('assessments.new', course_id=course.id) }}">New assessment</a>{% endcall %}
-{% if course.description %}<div class="card">{{ course.description|richtext }}</div>{% endif %}
-<div class="card table-wrap" style="padding:0">
+{% call course_tabs(course, 'overview') %}<a class="btn btn-primary" href="{{ url_for('assessments.new', course_id=course.id) }}">Create an assessment</a>{% endcall %}
+{% if course.description %}<div class="mb0" style="max-width:70ch; margin-bottom: var(--s5)">{{ course.description|richtext }}</div>{% endif %}
+<div class="table-wrap">
 <table class="table">
-  <thead><tr><th>Assessment</th><th>Status</th><th>Window</th><th class="num">Questions</th><th class="num">Submitted</th><th class="num">Class mean</th><th class="num">To grade</th><th></th></tr></thead>
+  <thead><tr><th>Assessment</th><th>Status</th><th>Opens</th><th>Closes</th><th class="num">Questions</th><th class="num">Submitted</th><th class="num">Class mean</th><th class="num">To grade</th><th></th></tr></thead>
   <tbody>
   {% for s in stats %}{% set a = s.assessment %}
   <tr>
-    <td><a href="{{ url_for('assessments.detail', assessment_id=a.id) }}"><strong>{{ a.title }}</strong></a>{% if not a.allow_online %} <span class="badge">Paper</span>{% endif %}</td>
+    <td><a href="{{ url_for('assessments.detail', assessment_id=a.id) }}"><strong>{{ a.title }}</strong></a>{% if not a.allow_online %} <span class="small muted">(paper)</span>{% endif %}</td>
     <td>{{ status_badge(a) }}</td>
-    <td class="small">{% if a.opens_at %}{{ a.opens_at|dt }}{% else %}—{% endif %} → {% if a.closes_at %}{{ a.closes_at|dt }}{% else %}—{% endif %}</td>
+    <td class="small">{{ a.opens_at|dt if a.opens_at else 'On publishing' }}</td>
+    <td class="small">{{ a.closes_at|dt if a.closes_at else 'When closed' }}</td>
     <td class="num">{{ a.items|length }}</td>
-    <td class="num">{{ s.submitted }} / {{ course.enrollments|length }}{% if s.in_progress %}<div class="small muted">{{ s.in_progress }} in progress</div>{% endif %}</td>
+    <td class="num">{{ s.submitted }} of {{ course.enrollments|length }}{% if s.in_progress %}<div class="small muted">{{ s.in_progress }} in progress</div>{% endif %}</td>
     <td class="num">{{ s.mean|pct }}</td>
-    <td class="num">{% if s.to_grade %}<a href="{{ url_for('assessments.grading', assessment_id=a.id) }}" class="badge badge-red">{{ s.to_grade }}</a>{% else %}0{% endif %}</td>
+    <td class="num">{% if s.to_grade %}<a class="attn" href="{{ url_for('assessments.grading', assessment_id=a.id) }}">{{ s.to_grade }}</a>{% else %}0{% endif %}</td>
     <td class="right nowrap"><a class="btn btn-sm" href="{{ url_for('assessments.results', assessment_id=a.id) }}">Results</a></td>
   </tr>
   {% else %}
-  <tr><td colspan="8" class="empty">No assessments yet. <a href="{{ url_for('assessments.new', course_id=course.id) }}">Create one</a>.</td></tr>
+  <tr><td colspan="9" class="empty">No assessments yet. <a href="{{ url_for('assessments.new', course_id=course.id) }}">Create one</a>.</td></tr>
   {% endfor %}
   </tbody>
 </table>

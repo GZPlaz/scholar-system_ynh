@@ -2,27 +2,28 @@
 {% from "_macros.html" import status_badge with context %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
-<div class="page-header">
-  <div><h1>Welcome, {{ current_user.display_name }}</h1><p class="subtitle">Your assessments across {{ courses|length }} course(s).</p></div>
+<div class="page-head">
+  <div><h1>Welcome, {{ current_user.display_name }}</h1>
+    <p class="facts"><span>{{ courses|length }} course{{ 's' if courses|length != 1 }} this term</span>
+      {% set waiting = rows|selectattr('can_start')|list|length %}{% if waiting %}<span><strong>{{ waiting }}</strong> assessment{{ 's' if waiting != 1 }} you can take now</span>{% endif %}</p></div>
   <div class="actions"><a class="btn" href="{{ url_for('student.my_progress') }}">My standards progress</a></div>
 </div>
-{% set active = rows|selectattr('state', 'equalto', 'open')|list %}
-<div class="card">
-  <div class="card-header"><h2>Assessments</h2></div>
+<section class="section">
+  <h2>Assessments</h2>
   {% if rows %}
   <div class="table-wrap">
   <table class="table">
-    <thead><tr><th>Assessment</th><th>Course</th><th>Status</th><th>Availability</th><th>Attempts</th><th class="num">Score</th><th></th></tr></thead>
+    <thead><tr><th>Assessment</th><th>Course</th><th>Status</th><th>When</th><th class="num">Attempts</th><th class="num">Score</th><th></th></tr></thead>
     <tbody>
     {% for r in rows %}
       {% set a = r.assessment %}
       <tr>
-        <td><strong>{{ a.title }}</strong>{% if a.time_limit_minutes %}<div class="small muted">{{ a.time_limit_minutes }} min time limit</div>{% endif %}{% if not a.allow_online %}<div class="small muted">Paper test</div>{% endif %}</td>
+        <td><strong>{{ a.title }}</strong>{% if a.time_limit_minutes or not a.allow_online %}<div class="small muted">{% if a.time_limit_minutes %}{{ a.time_limit_minutes }}-minute limit{% endif %}{% if not a.allow_online %}{{ ', ' if a.time_limit_minutes }}taken on paper{% endif %}</div>{% endif %}</td>
         <td>{{ r.course.code }}</td>
         <td>{% if r.in_progress %}<span class="badge badge-amber">In progress</span>{% else %}{{ status_badge(a) }}{% endif %}</td>
         <td class="small">{% if a.opens_at %}Opens {{ a.opens_at|dt }}<br>{% endif %}{% if a.closes_at %}Closes {{ a.closes_at|dt }}{% else %}<span class="muted">No closing date</span>{% endif %}</td>
-        <td>{{ r.submitted|length }}{% if a.max_attempts %} / {{ a.max_attempts }}{% endif %}</td>
-        <td class="num">{% if r.counted and r.results_visible %}{{ r.counted.percent|pct }}{% if r.counted.needs_grading %}<div class="small muted">grading pending</div>{% endif %}{% elif r.counted %}<span class="muted small">Submitted</span>{% else %}—{% endif %}</td>
+        <td class="num">{{ r.submitted|length }}{% if a.max_attempts %} of {{ a.max_attempts }}{% endif %}</td>
+        <td class="num">{% if r.counted and r.results_visible %}<strong>{{ r.counted.percent|pct }}</strong>{% if r.counted.needs_grading %}<div class="small muted">grading pending</div>{% endif %}{% elif r.counted %}<span class="muted small">Submitted</span>{% else %}<span class="muted">–</span>{% endif %}</td>
         <td class="right nowrap">
           {% if r.in_progress %}<a class="btn btn-primary btn-sm" href="{{ url_for('student.take', attempt_id=r.in_progress.id) }}">Resume</a>
           {% elif r.can_start %}<a class="btn btn-primary btn-sm" href="{{ url_for('student.start', assessment_id=a.id) }}">{{ 'Retake' if r.submitted else 'Start' }}</a>{% endif %}
@@ -34,13 +35,13 @@
   </table>
   </div>
   {% else %}
-  <div class="empty">No assessments have been published in your courses yet.</div>
+  <p class="empty">No assessments have been published in your courses yet.</p>
   {% endif %}
-</div>
-<div class="card">
+</section>
+<section class="section">
   <h2>My courses</h2>
   {% if courses %}
-  <ul>{% for c in courses %}<li>{{ c.label }}</li>{% endfor %}</ul>
+  <ul>{% for c in courses %}<li><strong>{{ c.code }}</strong> {{ c.title }}{% if c.term %} <span class="muted">({{ c.term }})</span>{% endif %}</li>{% endfor %}</ul>
   {% else %}<p class="muted">You are not enrolled in any course yet. Your instructor will add you to their roster.</p>{% endif %}
-</div>
+</section>
 {% endblock %}

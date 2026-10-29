@@ -2,46 +2,47 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>{{ assessment.title }}{{ ' — Answer key' if key }}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ assessment.title }}{{ ', answer key' if key }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v={{ app_version }}">
-  <style>body { background: #fff; color: #000; } :root { color-scheme: light; } .paper { padding: 1.5rem; }</style>
 </head>
 <body>
-<div class="no-print" style="padding: .75rem 1.5rem; background: #f0f2f5; display:flex; gap:.5rem">
+<div class="print-toolbar no-print">
   <button class="btn btn-primary" data-print>Print</button>
   <a class="btn" href="{{ url_for('assessments.paper', assessment_id=assessment.id) }}">Back</a>
 </div>
 <div class="paper">
   <div class="paper-header">
     <div>
-      <div><strong>{{ institution_name }}</strong></div>
-      <h1 style="margin:.25rem 0">{{ assessment.title }}{% if key %} — ANSWER KEY{% endif %}</h1>
-      <div>{{ assessment.course.code }} · {{ assessment.course.title }} {{ assessment.course.term }}</div>
-      <div class="small">{{ assessment.items|length }} questions · {{ assessment.max_score|num }} points{% if assessment.time_limit_minutes %} · {{ assessment.time_limit_minutes }} minutes{% endif %}</div>
+      <div class="small"><strong>{{ institution_name }}</strong>, {{ assessment.course.code }} {{ assessment.course.title }}{% if assessment.course.term %}, {{ assessment.course.term }}{% endif %}</div>
+      <h1>{{ assessment.title }}{% if key %}: answer key{% endif %}</h1>
+      <div class="small">{{ assessment.items|length }} questions, {{ assessment.max_score|num }} points{% if assessment.time_limit_minutes %}, {{ assessment.time_limit_minutes }} minutes{% endif %}</div>
     </div>
     {% if not key %}
-    <div style="line-height:2.2">
-      Name: <span class="line"></span><br>
-      Student ID: <span class="line"></span><br>
-      Date: <span class="line"></span>
+    <div class="fields small">
+      Name <span class="line"></span><br>
+      Student ID <span class="line"></span><br>
+      Date <span class="line"></span>
     </div>
     {% endif %}
   </div>
-  {% if assessment.instructions and not key %}<div style="margin-bottom:1rem">{{ assessment.instructions|richtext }}</div>{% endif %}
+  {% if assessment.instructions and not key %}<div class="instructions">{{ assessment.instructions|richtext }}</div>{% endif %}
   {% for item in assessment.items %}{% set q = item.question %}
   <div class="pq">
-    <div><strong>{{ loop.index }}.</strong> <span class="small">({{ item.effective_points|num }} pt{{ 's' if item.effective_points != 1 }}{% if q.qtype == 'ms' %}, select all that apply{% endif %})</span>
-      {% if key %}{% for s in q.standards %}<span class="tag">{{ s.code }}</span>{% endfor %}{% endif %}</div>
-    <div class="stem">{{ q.stem|richtext }}</div>
-    {% if q.has_choices %}
-      <ol>{% for c in q.choices %}<li class="{{ 'key' if key and c.is_correct }}">{{ c.text }}{% if key and c.is_correct %} ✓{% endif %}</li>{% endfor %}</ol>
-    {% elif key %}
-      <div class="key">{% if q.qtype == 'short' %}{{ q.choices|map(attribute='text')|join(' / ') }}{% elif q.qtype == 'numeric' %}{{ q.numeric_answer|num(6) }}{% if q.numeric_tolerance %} ± {{ q.numeric_tolerance|num(6) }}{% endif %}{% else %}Rubric: {{ q.explanation or '—' }}{% endif %}</div>
-    {% elif q.qtype == 'essay' %}
-      {% for _ in range(8) %}<div class="write-lines"></div>{% endfor %}
-    {% else %}
-      <div class="write-lines" style="max-width: 50%"></div>
-    {% endif %}
+    <div class="n">{{ loop.index }}.</div>
+    <div>
+      <div class="stem">{{ q.stem|richtext }}</div>
+      <div class="pts">{{ item.effective_points|num }} point{{ 's' if item.effective_points != 1 }}{% if q.qtype == 'ms' %}; mark every correct answer{% endif %}{% if key and q.standards %}; {{ q.standards|map(attribute='code')|join(', ') }}{% endif %}</div>
+      {% if q.has_choices %}
+        <ol>{% for c in q.choices %}<li class="{{ 'key' if key and c.is_correct }}">{{ c.text }}</li>{% endfor %}</ol>
+      {% elif key %}
+        <div class="key-answer">{% if q.qtype == 'short' %}{{ q.choices|map(attribute='text')|join(' or ') }}{% elif q.qtype == 'numeric' %}{{ q.numeric_answer|num(6) }}{% if q.numeric_tolerance %} (&plusmn;{{ q.numeric_tolerance|num(6) }}){% endif %}{% else %}Rubric: {{ q.explanation or 'none written' }}{% endif %}</div>
+      {% elif q.qtype == 'essay' %}
+        {% for _ in range(8) %}<div class="write-lines"></div>{% endfor %}
+      {% else %}
+        <div class="write-lines" style="max-width: 50%"></div>
+      {% endif %}
+    </div>
   </div>
   {% endfor %}
 </div>

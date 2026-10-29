@@ -1,9 +1,8 @@
 {% extends "base.html" %}
 {% block title %}{{ title }}{% endblock %}
+{% block main_class %}narrow{% endblock %}
 {% block content %}
-<div class="card narrow" style="margin: 3rem auto; text-align: center">
-  <h1>{{ code }} — {{ title }}</h1>
-  <p class="muted">{{ message }}</p>
-  <a class="btn btn-primary" href="{{ url_for('main.dashboard') }}">Back to the dashboard</a>
-</div>
+<div class="page-head"><div><p class="facts"><span>Error {{ code }}</span></p><h1>{{ title }}</h1></div></div>
+<p>{{ message }}</p>
+<a class="btn btn-primary" href="{{ url_for('main.dashboard') }}">Back to the dashboard</a>
 {% endblock %}

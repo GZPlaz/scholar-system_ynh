@@ -1,26 +1,26 @@
 {% extends "base.html" %}
 {% from "_macros.html" import assessment_tabs with context %}
-{% block title %}Grading · {{ assessment.title }}{% endblock %}
+{% block title %}Grading, {{ assessment.title }}{% endblock %}
 {% block content %}
 {{ assessment_tabs(assessment, 'grading') }}
 <div class="grid grid-2">
-  <div class="card">
+  <section class="section">
     <h2>Grade by question</h2>
-    <p class="small muted">Fastest for essays: score every student's answer to one question on a single page.</p>
+    <p class="small muted">Quickest for essays: score every student's answer to one question on a single page.</p>
     <table class="table compact">
-      <thead><tr><th>#</th><th>Question</th><th class="num">Pending</th><th></th></tr></thead>
+      <thead><tr><th class="num">#</th><th>Question</th><th class="num">Waiting</th><th></th></tr></thead>
       <tbody>
       {% for p in per_item %}
-      <tr><td>{{ assessment.items.index(p.item) + 1 }}</td><td>{{ p.item.question.stem_preview }}</td>
-        <td class="num">{% if p.pending %}<span class="badge badge-red">{{ p.pending }}</span>{% else %}0{% endif %}</td>
-        <td class="right"><a class="btn btn-sm" href="{{ url_for('assessments.grade_item', assessment_id=assessment.id, item_id=p.item.id, all=0 if p.pending else 1) }}">{{ 'Grade' if p.pending else 'Review' }}</a></td></tr>
+      <tr><td class="num">{{ assessment.items.index(p.item) + 1 }}</td><td>{{ p.item.question.stem_preview }}</td>
+        <td class="num">{% if p.pending %}<span class="attn">{{ p.pending }}</span>{% else %}0{% endif %}</td>
+        <td class="right"><a class="btn btn-sm {{ 'btn-primary' if p.pending }}" href="{{ url_for('assessments.grade_item', assessment_id=assessment.id, item_id=p.item.id, all=0 if p.pending else 1) }}">{{ 'Grade' if p.pending else 'Review' }}</a></td></tr>
       {% else %}
-      <tr><td colspan="4" class="empty">No manually graded questions.</td></tr>
+      <tr><td colspan="4" class="empty">This assessment has no hand-graded questions.</td></tr>
       {% endfor %}
       </tbody>
     </table>
-  </div>
-  <div class="card">
+  </section>
+  <section class="section">
     <h2>Grade by student</h2>
     <table class="table compact">
       <thead><tr><th>Student</th><th>Submitted</th><th></th></tr></thead>
@@ -29,10 +29,10 @@
       <tr><td>{{ a.user.display_name }}</td><td class="small">{{ a.submitted_at|dt }}</td>
         <td class="right"><a class="btn btn-sm btn-primary" href="{{ url_for('assessments.attempt_detail', assessment_id=assessment.id, attempt_id=a.id) }}">Grade</a></td></tr>
       {% else %}
-      <tr><td colspan="3" class="empty">Nothing waiting — all submitted attempts are fully graded. 🎉</td></tr>
+      <tr><td colspan="3" class="empty">Nothing waiting. Every submitted attempt is fully graded.</td></tr>
       {% endfor %}
       </tbody>
     </table>
-  </div>
+  </section>
 </div>
 {% endblock %}

@@ -2,9 +2,9 @@
 {% block title %}{{ 'Edit user' if user else 'New user' }}{% endblock %}
 {% block content %}
 {% set f = form or {} %}
-<div class="page-header"><h1>{{ 'Edit ' ~ user.username if user else 'New user' }}</h1></div>
+<div class="page-head"><h1>{{ 'Edit ' ~ user.username if user else 'New user' }}</h1></div>
 {% include "admin/_nav.html" %}
-<div class="card narrow">
+<div class="section plain narrow">
 <form method="post">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="form-row">

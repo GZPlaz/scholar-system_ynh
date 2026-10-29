@@ -1,24 +1,26 @@
 {% extends "base.html" %}
-{% from "_macros.html" import post_button with context %}
-{% block title %}Question #{{ question.id }}{% endblock %}
+{% from "_macros.html" import post_button, crumbs with context %}
+{% block title %}Question {{ question.id }}{% endblock %}
 {% block main_class %}narrow{% endblock %}
 {% block content %}
-<div class="breadcrumb"><a href="{{ url_for('questions.index') }}">Question bank</a> / #{{ question.id }}</div>
-<div class="page-header">
-  <div><h1>{{ question.type_label }} · {{ question.points|num }} pt{{ 's' if question.points != 1 }}</h1>
-    <p class="subtitle">By {{ question.owner.display_name if question.owner else 'unknown' }} · updated {{ question.updated_at|dt }}</p></div>
+{{ crumbs([('Question bank', url_for('questions.index')), ('Question ' ~ question.id, None)]) }}
+<div class="page-head">
+  <div><h1>{{ question.type_label }}</h1>
+    <p class="facts"><span><strong>{{ question.points|num }}</strong> point{{ 's' if question.points != 1 }}</span><span>Written by {{ question.owner.display_name if question.owner else 'unknown' }}</span><span>Updated {{ question.updated_at|dt }}</span>{% if not question.shared %}<span>Private</span>{% endif %}</p></div>
   <div class="actions">
     {% if current_user.is_admin or question.owner_id == current_user.id %}
-      <a class="btn btn-primary" href="{{ url_for('questions.edit', question_id=question.id) }}">Edit</a>
+      <a class="btn btn-primary" href="{{ url_for('questions.edit', question_id=question.id) }}">Edit question</a>
       {{ post_button(url_for('questions.delete', question_id=question.id), ('Restore' if question.archived else ('Archive' if question.items else 'Delete')), cls='btn btn-danger', confirm='Are you sure?') }}
     {% endif %}
     {{ post_button(url_for('questions.duplicate', question_id=question.id), 'Duplicate', cls='btn') }}
   </div>
 </div>
-<div class="question">{% include "questions/_render.html" %}</div>
-<div class="card">
-  <p><span class="label">Standards</span>{% for s in question.standards %}<span class="tag">{{ s.code }}</span> {{ s.title }}<br>{% else %}<span class="muted">Not aligned to any standard.</span>{% endfor %}</p>
-  {% if question.topic %}<p><span class="label">Topic</span>{{ question.topic }}</p>{% endif %}
-  <p class="mb0"><span class="label">Used in</span>{% for a in usage %}<a href="{{ url_for('assessments.detail', assessment_id=a.id) }}">{{ a.course.code }} · {{ a.title }}</a><br>{% else %}<span class="muted">No assessments yet.</span>{% endfor %}</p>
-</div>
+<div class="question"><div class="qn"></div><div class="qbody">{% include "questions/_render.html" %}</div></div>
+<section class="section mt">
+  <table class="table kv">
+    <tr><th>Standards</th><td>{% for s in question.standards %}<span class="tag">{{ s.code }}</span>{{ s.title }}<br>{% else %}<span class="muted">Not aligned to any standard.</span>{% endfor %}</td></tr>
+    {% if question.topic %}<tr><th>Topic</th><td>{{ question.topic }}</td></tr>{% endif %}
+    <tr><th>Used in</th><td>{% for a in usage %}<a href="{{ url_for('assessments.detail', assessment_id=a.id) }}">{{ a.title }}</a> <span class="muted">({{ a.course.code }})</span><br>{% else %}<span class="muted">No assessments yet.</span>{% endfor %}</td></tr>
+  </table>
+</section>
 {% endblock %}

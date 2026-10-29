@@ -4,7 +4,7 @@
 {% block content %}
 {% if assessment %}{{ assessment_tabs(assessment, 'settings') }}{% else %}
 <div class="breadcrumb"><a href="{{ url_for('courses.detail', course_id=course.id) }}">{{ course.code }}</a></div>
-<div class="page-header"><h1>New assessment</h1><p class="subtitle">{{ course.label }}</p></div>{% endif %}
+<div class="page-head"><h1>New assessment</h1><p class="facts">{{ course.label }}</p></div>{% endif %}
 {% macro val(name, default='') -%}{{ form.get(name, default) if form is not none else default }}{%- endmacro %}
 {% macro checked(name, current) -%}{{ 'checked' if (form.get(name) if form is not none else current) }}{%- endmacro %}
 {% set a = assessment %}
@@ -12,11 +12,11 @@
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   {% if not assessment %}<input type="hidden" name="course_id" value="{{ course.id }}">{% endif %}
   <div>
-    <div class="card">
+    <div class="section">
       <div class="field"><label for="title">Title</label><input type="text" id="title" name="title" value="{{ val('title', a.title if a else '') }}" required maxlength="200" placeholder="Unit 3 Quiz"></div>
       <div class="field"><label for="instructions">Instructions for students</label><textarea id="instructions" name="instructions" rows="4">{{ val('instructions', a.instructions if a else '') }}</textarea></div>
     </div>
-    <div class="card">
+    <div class="section">
       <h3>Availability</h3>
       <div class="form-row">
         <div class="field"><label for="opens_at">Opens</label><input type="datetime-local" id="opens_at" name="opens_at" value="{{ val('opens_at', to_input_value(a.opens_at) if a else '') }}"><div class="help">Empty = as soon as published.</div></div>
@@ -31,24 +31,24 @@
     </div>
   </div>
   <div>
-    <div class="card">
+    <div class="section">
       <h3>Delivery</h3>
       <label class="check"><input type="checkbox" name="shuffle_questions" value="1" {{ checked('shuffle_questions', a.shuffle_questions if a else False) }}> Shuffle question order per student</label>
       <label class="check"><input type="checkbox" name="shuffle_choices" value="1" {{ checked('shuffle_choices', a.shuffle_choices if a else False) }}> Shuffle answer options</label>
     </div>
-    <div class="card">
+    <div class="section">
       <h3>Results</h3>
       {% set sr = val('show_results', a.show_results if a else 'immediately') %}
       {% for k, v in SHOW_RESULTS.items() %}<label class="check"><input type="radio" name="show_results" value="{{ k }}" {{ 'checked' if sr == k }}> {{ v }}</label>{% endfor %}
       <label class="check mt"><input type="checkbox" name="show_correct_answers" value="1" {{ checked('show_correct_answers', a.show_correct_answers if a else False) }}> Reveal correct answers and explanations when results are shown</label>
     </div>
-    <div class="card">
+    <div class="section">
       <button class="btn btn-primary" type="submit" style="width:100%;justify-content:center">{{ 'Save settings' if assessment else 'Create assessment' }}</button>
     </div>
   </div>
 </form>
 {% if assessment %}
-<div class="card">
+<div class="section">
   <h2>Danger zone</h2>
   <form method="post" action="{{ url_for('assessments.delete', assessment_id=assessment.id) }}" class="actions" data-confirm="Permanently delete this assessment and all of its results?">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

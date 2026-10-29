@@ -1,68 +1,76 @@
 {% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endmacro %}
 
-{% macro post_button(url, label, cls='btn btn-sm', confirm=None, fields={}) -%}
+{% macro post_button(url, label, cls='btn btn-sm', confirm=None, fields={}, title=None) -%}
 <form method="post" action="{{ url }}" class="inline"{% if confirm %} data-confirm="{{ confirm }}"{% endif %}>
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   {% for k, v in fields.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
-  <button type="submit" class="{{ cls }}">{{ label }}</button>
+  <button type="submit" class="{{ cls }}"{% if title %} title="{{ title }}" aria-label="{{ title }}"{% endif %}>{{ label }}</button>
 </form>
 {%- endmacro %}
 
+{# Assessment availability, drawn as a bubble: filled = open, empty = upcoming/draft, crossed = closed #}
 {% macro status_badge(assessment) -%}
 {% set st = assessment.window_state() %}
-{% if st == 'draft' %}<span class="badge">Draft</span>
-{% elif st == 'open' %}<span class="badge badge-green">Open</span>
-{% elif st == 'upcoming' %}<span class="badge badge-blue">Upcoming</span>
-{% else %}<span class="badge badge-red">Closed</span>{% endif %}
+{% if st == 'draft' %}<span class="state state-draft"><i class="mark"></i>Draft</span>
+{% elif st == 'open' %}<span class="state state-open"><i class="mark"></i>Open</span>
+{% elif st == 'upcoming' %}<span class="state state-upcoming"><i class="mark"></i>Upcoming</span>
+{% else %}<span class="state state-closed"><i class="mark"></i>Closed</span>{% endif %}
 {%- endmacro %}
 
 {% macro level_cell(stat, tag='td') -%}
 {% if stat and stat.percent is not none %}
-<{{ tag }} class="lvl lvl-{{ stat.level }}" title="{{ LEVEL_LABELS[stat.level] }} · {{ stat.earned|num }}/{{ stat.possible|num }} pts over {{ stat['items'] }} item(s)">{{ stat.percent|round|int }}</{{ tag }}>
+<{{ tag }} class="lvl lvl-{{ stat.level }}" title="{{ LEVEL_LABELS[stat.level] }}: {{ stat.earned|num }} of {{ stat.possible|num }} points over {{ stat['items'] }} question(s)">{{ stat.percent|round|int }}</{{ tag }}>
 {% else %}
-<{{ tag }} class="lvl lvl-none" title="No evidence yet">·</{{ tag }}>
+<{{ tag }} class="lvl lvl-none" title="No evidence yet">&ndash;</{{ tag }}>
 {% endif %}
 {%- endmacro %}
 
 {% macro legend() -%}
-<div class="legend">
-  <span class="lvl-mastered">Mastered</span>
-  <span class="lvl-approaching">Approaching</span>
-  <span class="lvl-not-yet">Not yet</span>
-  <span class="lvl-none">No evidence</span>
+<div class="legend" aria-label="Mastery levels">
+  <span><i class="sw-mastered"></i>Mastered</span>
+  <span><i class="sw-approaching"></i>Approaching</span>
+  <span><i class="sw-not-yet"></i>Not yet</span>
+  <span><i class="sw-none"></i>No evidence</span>
 </div>
 {%- endmacro %}
 
 {% macro histogram(summary) -%}
-<div class="histogram" role="img" aria-label="Score distribution">
+<div class="histogram" role="img" aria-label="Score distribution in 10-point bands">
   {% for c in summary.bins %}
   <div class="col"><span class="cnt">{{ c if c }}</span><div class="bar" style="height: {{ (100 * c / summary.bin_max)|round(1) }}%"></div></div>
   {% endfor %}
 </div>
-<div class="histogram-labels">{% for i in range(10) %}<span>{{ i*10 }}{% if i == 9 %}–100{% endif %}</span>{% endfor %}</div>
+<div class="histogram-labels">{% for i in range(10) %}<span>{{ i*10 }}{% if i == 9 %}+{% endif %}</span>{% endfor %}</div>
 {%- endmacro %}
 
 {% macro pagination_nav(p, endpoint) -%}
 {% if p.pages > 1 %}
 <div class="actions mt">
-  {% if p.has_prev %}<a class="btn btn-sm" href="{{ url_for(endpoint, page=p.prev_num, **kwargs) }}">← Previous</a>{% endif %}
-  <span class="muted small">Page {{ p.page }} of {{ p.pages }} · {{ p.total }} total</span>
-  {% if p.has_next %}<a class="btn btn-sm" href="{{ url_for(endpoint, page=p.next_num, **kwargs) }}">Next →</a>{% endif %}
+  {% if p.has_prev %}<a class="btn btn-sm" href="{{ url_for(endpoint, page=p.prev_num, **kwargs) }}">Previous page</a>{% endif %}
+  <span class="muted small">Page {{ p.page }} of {{ p.pages }}, {{ p.total }} in total</span>
+  {% if p.has_next %}<a class="btn btn-sm" href="{{ url_for(endpoint, page=p.next_num, **kwargs) }}">Next page</a>{% endif %}
 </div>
 {% endif %}
 {%- endmacro %}
 
+{% macro crumbs(items) -%}
+<div class="breadcrumb">{% for label, url in items %}{% if url %}<a href="{{ url }}">{{ label }}</a>{% else %}{{ label }}{% endif %}{% if not loop.last %}<span class="sep">/</span>{% endif %}{% endfor %}</div>
+{%- endmacro %}
+
 {% macro course_tabs(course, active) -%}
-<div class="breadcrumb"><a href="{{ url_for('courses.index') }}">Courses</a> / {{ course.code }}</div>
-<div class="page-header">
+{{ crumbs([('Courses', url_for('courses.index')), (course.code, None)]) }}
+<div class="page-head">
   <div>
-    <h1>{{ course.code }} — {{ course.title }}</h1>
-    <p class="subtitle">{{ course.term }}{% if course.archived %} · <span class="badge">Archived</span>{% endif %}
-      {% if course.instructors %} · {{ course.instructors|map(attribute='display_name')|join(', ') }}{% endif %}</p>
+    <h1>{{ course.code }}: {{ course.title }}</h1>
+    <p class="facts">
+      {% if course.term %}<span>{{ course.term }}</span>{% endif %}
+      {% if course.instructors %}<span>Taught by {{ course.instructors|map(attribute='display_name')|join(', ') }}</span>{% endif %}
+      {% if course.archived %}<span class="badge">Archived</span>{% endif %}
+    </p>
   </div>
   <div class="actions">{{ caller() if caller }}</div>
 </div>
-<nav class="tabs">
+<nav class="tabs" aria-label="Course">
   <a href="{{ url_for('courses.detail', course_id=course.id) }}" class="{{ 'active' if active == 'overview' }}">Assessments</a>
   <a href="{{ url_for('courses.roster', course_id=course.id) }}" class="{{ 'active' if active == 'roster' }}">Roster ({{ course.enrollments|length }})</a>
   <a href="{{ url_for('reports.gradebook', course_id=course.id) }}" class="{{ 'active' if active == 'gradebook' }}">Gradebook</a>
@@ -73,22 +81,28 @@
 
 {% macro assessment_tabs(assessment, active) -%}
 {% set to_grade = assessment.attempts|selectattr('needs_grading')|selectattr('status', 'equalto', 'submitted')|list|length %}
-<div class="breadcrumb"><a href="{{ url_for('courses.index') }}">Courses</a> / <a href="{{ url_for('courses.detail', course_id=assessment.course_id) }}">{{ assessment.course.code }}</a> / {{ assessment.title }}</div>
-<div class="page-header">
+{{ crumbs([('Courses', url_for('courses.index')), (assessment.course.code, url_for('courses.detail', course_id=assessment.course_id)), (assessment.title, None)]) }}
+<div class="page-head">
   <div>
-    <h1>{{ assessment.title }} {{ status_badge(assessment) }}</h1>
-    <p class="subtitle">{{ assessment.items|length }} question(s) · {{ assessment.max_score|num }} points
-      {% if assessment.time_limit_minutes %} · {{ assessment.time_limit_minutes }} min{% endif %}
-      {% if assessment.closes_at %} · closes {{ assessment.closes_at|dt }}{% endif %}</p>
+    <h1>{{ assessment.title }}</h1>
+    <p class="facts">
+      <span>{{ status_badge(assessment) }}</span>
+      <span><strong>{{ assessment.items|length }}</strong> question{{ 's' if assessment.items|length != 1 }}, <strong>{{ assessment.max_score|num }}</strong> points</span>
+      {% if assessment.time_limit_minutes %}<span><strong>{{ assessment.time_limit_minutes }}</strong> minutes</span>{% endif %}
+      {% if assessment.closes_at %}<span>Closes {{ assessment.closes_at|dt }}</span>{% endif %}
+    </p>
   </div>
   <div class="actions">{{ caller() if caller }}</div>
 </div>
-<nav class="tabs">
+<nav class="tabs" aria-label="Assessment">
   <a href="{{ url_for('assessments.detail', assessment_id=assessment.id) }}" class="{{ 'active' if active == 'builder' }}">Questions</a>
   <a href="{{ url_for('assessments.results', assessment_id=assessment.id) }}" class="{{ 'active' if active == 'results' }}">Results</a>
   <a href="{{ url_for('assessments.analysis', assessment_id=assessment.id) }}" class="{{ 'active' if active == 'analysis' }}">Item analysis</a>
-  <a href="{{ url_for('assessments.grading', assessment_id=assessment.id) }}" class="{{ 'active' if active == 'grading' }}">Grading{% if to_grade %}<span class="count">{{ to_grade }}</span>{% endif %}</a>
-  <a href="{{ url_for('assessments.paper', assessment_id=assessment.id) }}" class="{{ 'active' if active == 'paper' }}">Paper &amp; printing</a>
+  <a href="{{ url_for('assessments.grading', assessment_id=assessment.id) }}" class="{{ 'active' if active == 'grading' }}">Grading{% if to_grade %}<span class="count" title="{{ to_grade }} attempt(s) awaiting grading">{{ to_grade }}</span>{% endif %}</a>
+  <a href="{{ url_for('assessments.paper', assessment_id=assessment.id) }}" class="{{ 'active' if active == 'paper' }}">Paper and printing</a>
   <a href="{{ url_for('assessments.settings', assessment_id=assessment.id) }}" class="{{ 'active' if active == 'settings' }}">Settings</a>
 </nav>
 {%- endmacro %}
+
+{# A choice letter as an answer bubble. state: '', 'filled', 'wrong', 'key' #}
+{% macro bubble(index, state='') -%}<span class="bubble {{ state }}" aria-hidden="true">{{ index|letter }}</span>{%- endmacro %}

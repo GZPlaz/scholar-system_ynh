@@ -5,36 +5,39 @@
 {{ assessment_tabs(assessment, 'grading') }}
 <div class="layout-side">
 <div>
-  <div class="card-header"><h2>Question {{ number }} · {{ item.effective_points|num }} pts</h2>
-    <a class="btn btn-sm" href="{{ url_for('assessments.grade_item', assessment_id=assessment.id, item_id=item.id, all=0 if show_all else 1) }}">{{ 'Show pending only' if show_all else 'Show all responses' }}</a></div>
+  <div class="section-head"><h2>Question {{ number }}, worth {{ item.effective_points|num }} points</h2>
+    <a class="btn btn-sm" href="{{ url_for('assessments.grade_item', assessment_id=assessment.id, item_id=item.id, all=0 if show_all else 1) }}">{{ 'Show only answers waiting' if show_all else 'Show every answer' }}</a></div>
   {% if responses %}
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     {% for r in responses %}
     <div class="question">
-      <div class="question-head"><strong>{{ r.attempt.user.display_name }}</strong>
-        {% if r.needs_grading %}<span class="badge badge-amber">Pending</span>{% else %}<span class="badge badge-green">{{ r.points_awarded|num }} pts</span>{% endif %}</div>
-      {% set ans = r.get_answer() %}
-      {% if ans == '[paper]' %}<p class="muted">Paper response — score it from the student's sheet.</p>
-      {% elif item.question.has_choices %}<div class="answer-box">{% set ids = ans if ans is iterable and ans is not string else [ans] %}{% for c in item.question.choices %}{% if c.id in ids %}{{ loop.index0|letter }}. {{ c.text }}<br>{% endif %}{% endfor %}</div>
-      {% else %}<div class="answer-box">{{ ans if ans else '(no answer)' }}</div>{% endif %}
-      <div class="form-row mt">
-        <div class="field"><label>Points (max {{ item.effective_points|num }})</label><input class="points" type="number" step="any" min="0" max="{{ item.effective_points }}" name="points_{{ r.id }}" value="{{ r.points_awarded|num if r.points_awarded is not none and not r.needs_grading else '' }}"></div>
-        <div class="field" style="grid-column: span 3"><label>Feedback</label><textarea name="feedback_{{ r.id }}" rows="2" style="min-height:2.5rem">{{ r.feedback }}</textarea></div>
+      <div class="qn"></div>
+      <div class="qbody">
+        <div class="question-head"><strong>{{ r.attempt.user.display_name }}</strong>
+          {% if r.needs_grading %}<span class="score pending">Waiting</span>{% else %}<span class="score">{{ r.points_awarded|num }} points</span>{% endif %}</div>
+        {% set ans = r.get_answer() %}
+        {% if ans == '[paper]' %}<p class="muted">Answered on paper: score it from the student's booklet.</p>
+        {% elif item.question.has_choices %}<div class="answer-box">{% set ids = ans if ans is iterable and ans is not string else [ans] %}{% for c in item.question.choices %}{% if c.id in ids %}{{ loop.index0|letter }}. {{ c.text }}<br>{% endif %}{% endfor %}</div>
+        {% else %}<div class="answer-box">{{ ans if ans else 'No answer given.' }}</div>{% endif %}
+        <div class="form-row mt">
+          <div class="field"><label for="p{{ r.id }}">Points, out of {{ item.effective_points|num }}</label><input class="points" id="p{{ r.id }}" type="number" step="any" min="0" max="{{ item.effective_points }}" name="points_{{ r.id }}" value="{{ r.points_awarded|num if r.points_awarded is not none and not r.needs_grading else '' }}"></div>
+          <div class="field" style="grid-column: span 3"><label for="f{{ r.id }}">Note to the student</label><textarea id="f{{ r.id }}" name="feedback_{{ r.id }}" rows="2" style="min-height:2.6rem">{{ r.feedback }}</textarea></div>
+        </div>
       </div>
     </div>
     {% endfor %}
-    <button class="btn btn-primary" type="submit">Save grades</button>
+    <div class="submit-row"><button class="btn btn-primary" type="submit">Save grades</button></div>
   </form>
   {% else %}
-  <div class="card empty">No {{ '' if show_all else 'pending ' }}responses for this question.</div>
+  <p class="empty">No {{ '' if show_all else 'waiting ' }}answers for this question.</p>
   {% endif %}
 </div>
-<div>
-  <div class="card" style="position:sticky; top:1rem">
-    <h3>Question &amp; rubric</h3>
+<aside class="aside">
+  <section class="section" style="position:sticky; top:var(--s4)">
+    <h3>Question and rubric</h3>
     {% with question=item.question %}{% include "questions/_render.html" %}{% endwith %}
-  </div>
-</div>
+  </section>
+</aside>
 </div>
 {% endblock %}

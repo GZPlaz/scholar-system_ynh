@@ -4,8 +4,8 @@
 {% block content %}
 {% set f = form or {} %}
 <div class="breadcrumb"><a href="{{ url_for('standards.index') }}">Standards</a></div>
-<div class="page-header"><h1>{{ 'Edit ' ~ standard.code if standard else 'New standard' }}</h1></div>
-<form method="post" class="card">
+<div class="page-head"><h1>{{ 'Edit ' ~ standard.code if standard else 'New standard' }}</h1></div>
+<form method="post" class="section">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="form-row">
     <div class="field"><label for="code">Code</label><input type="text" id="code" name="code" value="{{ f.get('code', standard.code if standard else '') }}" placeholder="MATH.ALG.1" required maxlength="60"></div>
