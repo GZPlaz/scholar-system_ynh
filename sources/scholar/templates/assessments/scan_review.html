@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% from "_macros.html" import assessment_tabs, post_button with context %}
+{% block title %}Check scan, {{ assessment.title }}{% endblock %}
+{% block content %}
+{{ assessment_tabs(assessment, 'paper') }}
+<div class="page-head">
+  <div><h2 style="margin:0">{{ scan.user.display_name if scan.user else 'Blank answer sheet' }}</h2>
+    <p class="facts"><span>Page {{ result.page }} of {{ result.pages }}</span><span>Sheet {{ scan.sheet_id }}</span><span>Uploaded {{ scan.created_at|dt }}</span>
+      {% if scan.status == 'recorded' %}<span>Recorded {{ scan.recorded_at|dt }}</span>{% endif %}</p></div>
+  <div class="actions"><a class="btn" href="{{ url_for('scans.index', assessment_id=assessment.id) }}">All scans</a></div>
+</div>
+{% if result.removed %}<div class="flash flash-info">Question(s) {{ result.removed|join(', ') }} were removed from the assessment after this sheet was printed; their bubbles are ignored.</div>{% endif %}
+<div class="scan-layout">
+  <figure class="scan-figure">
+    <div class="scan-image">
+      <img src="{{ url_for('scans.image', assessment_id=assessment.id, scan_id=scan.id) }}" alt="The straightened photo of the answer sheet">
+      {% for m in marks %}<span class="scan-mark {{ m.state }}{{ ' flagged' if m.flag }}" style="left: {{ m.x }}%; top: {{ m.y }}%; width: {{ m.d }}%"></span>{% endfor %}
+    </div>
+    <figcaption class="small muted">Straightened photo. Rings show what Scholar read as filled; red rings are the ones it is unsure about.</figcaption>
+  </figure>
+  <form method="post" class="scan-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="field">
+      <label for="user_id">Student</label>
+      <select id="user_id" name="user_id" required>
+        <option value="">Choose the student…</option>
+        {% set chosen = (form_values.get('user_id')|int if form_values else (scan.user_id or 0)) %}
+        {% for st in students %}<option value="{{ st.id }}" {{ 'selected' if st.id == chosen }}>{{ st.display_name }} ({{ st.username }}{% if st.student_number %}, {{ st.student_number }}{% endif %})</option>{% endfor %}
+      </select>
+      {% if scan.sheet.user_id %}<div class="help">Printed for {{ scan.sheet.user.display_name if scan.sheet.user else 'a student who has left the course' }}.</div>{% else %}<div class="help">Blank sheet: check the name written on it.</div>{% endif %}
+    </div>
+    <table class="table compact scan-answers">
+      <thead><tr><th class="num">#</th><th>Read as</th><th></th></tr></thead>
+      <tbody>
+      {% for r in rows %}{% set slot = r.slot %}{% set read = r.read %}{% set name = 'q_' ~ slot.item %}
+      {% set val = form_values.get(name, '') if form_values else read.value %}
+      <tr class="{{ 'flag-row' if read.flag }}">
+        <td class="num"><strong>{{ slot.n }}</strong></td>
+        <td>
+          {% if not r.item %}<span class="muted small">removed from the assessment</span>
+          {% elif slot.kind == 'choice' %}
+            <input type="text" class="entry" name="{{ name }}" value="{{ val }}" maxlength="12" autocomplete="off" aria-label="Answer to question {{ slot.n }}">
+            <span class="small muted">{{ slot.labels|join(' ') }}</span>
+          {% elif slot.kind == 'write' %}
+            {% set c = crops[slot.item] %}
+            <div class="scan-crop" style="width: {{ c.w }}px; height: {{ c.h }}px"><img src="{{ url_for('scans.image', assessment_id=assessment.id, scan_id=scan.id) }}" alt="What the student wrote for question {{ slot.n }}" style="width: {{ c.img_w }}px; left: {{ c.left }}px; top: {{ c.top }}px"></div>
+            <input type="text" name="{{ name }}" value="{{ val }}" aria-label="Type the answer to question {{ slot.n }}" style="max-width: 300px" placeholder="{{ 'type what is written' if read.flag else 'left blank' }}">
+          {% else %}
+            <input type="number" class="points" step="any" min="0" max="{{ r.item.effective_points }}" name="{{ name }}" value="{{ val }}" placeholder="later" aria-label="Points for question {{ slot.n }}">
+            <span class="small muted">essay, points out of {{ r.item.effective_points|num }}</span>
+          {% endif %}
+        </td>
+        <td class="small">{% if read.flag %}<span class="attn">{{ flag_text[read.flag] }}</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <div class="actions mt">
+      <button class="btn btn-primary" type="submit">{{ 'Record again' if scan.status == 'recorded' else 'Record these answers' }}</button>
+      <span class="help">Letters as on the sheet: <code>B</code>, <code>AC</code> for several, <code>T</code>/<code>F</code>. Leave empty for no answer.</span>
+    </div>
+  </form>
+</div>
+{% endblock %}

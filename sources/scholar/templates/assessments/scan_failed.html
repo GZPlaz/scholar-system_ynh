@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% from "_macros.html" import assessment_tabs, post_button with context %}
+{% block title %}Unreadable photo{% endblock %}
+{% block content %}
+{{ assessment_tabs(assessment, 'paper') }}
+<div class="page-head"><div><h2 style="margin:0">This photo couldn't be read</h2>
+  <p class="facts"><span>{{ scan.filename }}</span><span>Uploaded {{ scan.created_at|dt }}</span></p></div>
+  <div class="actions"><a class="btn" href="{{ url_for('scans.index', assessment_id=assessment.id) }}">Back to scans</a>
+  {{ post_button(url_for('scans.delete', assessment_id=assessment.id, scan_id=scan.id), 'Remove photo', cls='btn btn-danger') }}</div></div>
+<div class="flash flash-error">{{ scan.error }}</div>
+<p>Retake the photo and upload it again, or <a href="{{ url_for('assessments.paper', assessment_id=assessment.id) }}">type the answers in</a>.</p>
+{% if scan.image %}<img class="scan-photo" src="{{ url_for('scans.image', assessment_id=assessment.id, scan_id=scan.id) }}" alt="The uploaded photo">{% endif %}
+{% endblock %}

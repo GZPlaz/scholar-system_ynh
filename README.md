@@ -11,7 +11,7 @@ Scholar System is a self-hosted testing platform in the spirit of Mastery Manage
 - **Question bank** — multiple choice, multiple select, true/false, short answer, numeric and essay questions, aligned to standards / learning outcomes, shared between instructors, CSV import.
 - **Assessments** — availability windows, time limits, attempt limits, access codes, shuffling, results-release policy.
 - **Online testing** — autosave, server-enforced timer with auto-submit, question navigator, flag for review.
-- **Paper testing** — printable booklets, answer keys and pre-filled bubble sheets; keyed entry (`A`, `AC`, `T`) or CSV import of responses.
+- **Paper testing with phone scanning** — print a full-page answer sheet for each student (longer tests continue on more pages), then photograph the completed sheets with a phone. Scholar straightens each photo, identifies the student and page from the code printed on it, and reads the bubbles; clean sheets are recorded in one click and doubtful marks or handwritten answers are shown cropped for a quick check. Keyed entry (`A`, `AC`, `T`) and CSV import are still there.
 - **Grading** — automatic scoring, essay grading queue (by student or by question), overrides with feedback, automatic re-scoring when a key is corrected.
 - **Reports** — score distribution, item analysis (p-value, point-biserial, D-index, distractors, Cronbach's α / KR-20, SEM), gradebook, standards-mastery heat map, student reports, CSV exports everywhere.
 - **Administration** — roles, CSV user/roster import, mastery thresholds, time zone, audit log.

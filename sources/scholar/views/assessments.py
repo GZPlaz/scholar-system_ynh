@@ -581,10 +581,25 @@ def print_test(assessment_id):
 @bp.route("/<int:assessment_id>/bubble-sheets")
 @staff_required
 def bubble_sheets(assessment_id):
+    from .scans import sheets_for
+
     assessment = get_assessment(assessment_id)
-    students = assessment.course.students if not parse_bool(request.args.get("blank", "")) else []
-    max_choices = max([len(i.question.choices) for i in assessment.items if i.question.has_choices] or [4])
-    return render_template("assessments/bubbles.html", assessment=assessment, students=students or [None], max_choices=max(4, max_choices))
+    if not assessment.items:
+        flash("Add questions before printing answer sheets.", "error")
+        return redirect(url_for("assessments.paper", assessment_id=assessment.id))
+    blank = parse_bool(request.args.get("blank", ""))
+    students = [None] if blank else assessment.course.students
+    only = parse_int(request.args.get("student"))
+    if only and not blank:
+        students = [s for s in students if s.id == only]
+    if not students:
+        flash("No students are enrolled yet, so here is a blank sheet.", "info")
+        students = [None]
+    sheets = sheets_for(assessment, students)
+    db.session.commit()
+    from .. import omr
+
+    return render_template("assessments/bubbles.html", assessment=assessment, sheets=sheets, geo=omr)
 
 
 def letters_to_answer(item, raw):
@@ -630,13 +645,18 @@ def answer_to_letters(item, answer):
     return str(answer)
 
 
-def record_paper_attempt(assessment, user, values):
+def record_paper_attempt(assessment, user, values, partial=False):
     """values: {item_id: raw string}. Essay items take a points value. Returns the attempt.
 
+    With partial=True only the items present in ``values`` are touched, so the pages of a
+    multi-page scanned sheet can be recorded one at a time into the same attempt.
     Everything is validated before the database is touched, so a ValueError leaves no trace.
     """
+    items = [i for i in assessment.items if not partial or i.id in values]
+    numbers = {item.id: n for n, item in enumerate(assessment.items, start=1)}
     parsed = {}
-    for number, item in enumerate(assessment.items, start=1):
+    for item in items:
+        number = numbers[item.id]
         raw = (values.get(item.id) or "").strip()
         try:
             if item.question.qtype == "essay":
@@ -652,7 +672,7 @@ def record_paper_attempt(assessment, user, values):
     attempt = next((a for a in assessment.attempts if a.user_id == user.id and a.source == "paper"), None)
     if attempt is None:
         attempt = start_attempt(assessment, user, source="paper", entered_by=current_user)
-    for item in assessment.items:
+    for item in items:
         value = parsed[item.id]
         if item.question.qtype == "essay":
             response = next((r for r in attempt.responses if r.item_id == item.id), None)

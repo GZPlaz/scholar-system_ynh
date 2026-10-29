@@ -5,37 +5,54 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Answer sheets, {{ assessment.title }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v={{ app_version }}">
+  <style>@page { size: auto; margin: 10mm; }</style>
 </head>
-<body>
+<body class="omr-print">
+{% set off = geo.FID / 2 %}
+{% set SW = geo.FRAME_W + geo.FID %}{% set SH = geo.FRAME_H + geo.FID %}
 <div class="print-toolbar no-print">
-  <button class="btn btn-primary" data-print>Print {{ students|length }} sheet{{ 's' if students|length != 1 }}</button>
+  <button class="btn btn-primary" data-print>Print {{ sheets|length }} page{{ 's' if sheets|length != 1 }}</button>
   <a class="btn" href="{{ url_for('assessments.paper', assessment_id=assessment.id) }}">Back</a>
+  <span class="small">Print at 100% (actual size) on A4 or US Letter. Each page carries its own code, so the order of the pile doesn't matter.</span>
 </div>
-{% for s in students %}
-<div class="bubble-sheet">
-  <div class="paper-header">
-    <div>
+{% for s in sheets %}{% set lay = s.layout %}
+<section class="omr-sheet" style="width: {{ SW }}mm; height: {{ SH }}mm" aria-label="Answer sheet{{ ' for ' ~ s.user.display_name if s.user }}, page {{ lay.page }} of {{ lay.pages }}">
+  <svg class="omr-svg" viewBox="0 0 {{ SW }} {{ SH }}" width="{{ SW }}mm" height="{{ SH }}mm" aria-hidden="true">
+    {% for fx, fy in [(0, 0), (geo.FRAME_W, 0), (geo.FRAME_W, geo.FRAME_H), (0, geo.FRAME_H)] %}
+    <rect x="{{ fx }}" y="{{ fy }}" width="{{ geo.FID }}" height="{{ geo.FID }}" fill="#000"/>
+    {% endfor %}
+    {% for x, y in s.code %}<rect x="{{ (x + off)|round(2) }}" y="{{ (y + off)|round(2) }}" width="{{ geo.CODE_CELL }}" height="{{ geo.CODE_CELL }}" fill="#000"/>{% endfor %}
+    {% for slot in lay.slots %}
+      <text x="{{ (slot.x + off + geo.NUMBER_W)|round(2) }}" y="{{ (slot.y + off + geo.ROW_PITCH / 2)|round(2) }}" class="omr-n" text-anchor="end" dominant-baseline="central">{{ slot.n }}</text>
+      {% if slot.kind == 'choice' %}
+        {% for bx, by in slot.bubbles %}
+        <circle cx="{{ (bx + off)|round(2) }}" cy="{{ (by + off)|round(2) }}" r="{{ geo.BUBBLE_D / 2 }}" class="omr-bubble"/>
+        <text x="{{ (bx + off)|round(2) }}" y="{{ (by + off + 0.08)|round(2) }}" class="omr-letter" text-anchor="middle" dominant-baseline="central">{{ slot.labels[loop.index0] }}</text>
+        {% endfor %}
+      {% elif slot.kind == 'write' %}
+        <rect x="{{ (slot.box[0] + off)|round(2) }}" y="{{ (slot.box[1] + off)|round(2) }}" width="{{ slot.box[2] }}" height="{{ slot.box[3] }}" rx="0.4" class="omr-box"/>
+      {% else %}
+        <text x="{{ (slot.x + off + geo.NUMBER_W + geo.NUMBER_GAP)|round(2) }}" y="{{ (slot.y + off + geo.ROW_PITCH / 2)|round(2) }}" class="omr-note" dominant-baseline="central">{{ 'essay: answer in the booklet' if slot.qtype == 'essay' else 'answer in the booklet' }}</text>
+      {% endif %}
+    {% endfor %}
+  </svg>
+  <div class="omr-head" style="left: {{ off + 2 }}mm; top: {{ off + 8 }}mm; width: {{ geo.FRAME_W - 4 }}mm; height: {{ geo.AREA_TOP - 10 }}mm">
+    <div class="omr-id">
       <div class="small"><strong>{{ institution_name }}</strong>, {{ assessment.course.code }}</div>
-      <h2>{{ assessment.title }}: answer sheet</h2>
-      <div class="small">Fill one bubble per question completely, in pencil or dark pen. For “mark every correct answer” questions, fill every bubble that applies.</div>
+      <div class="omr-title">{{ assessment.title }}</div>
+      <div class="omr-instr">Fill each bubble completely with a dark pencil or pen. Erase cleanly to change an answer. Don't write on the black squares or the row of small squares above.</div>
     </div>
-    <div class="fields small">
-      Name {% if s %}<strong>{{ s.display_name }}</strong>{% else %}<span class="line"></span>{% endif %}<br>
-      Username {% if s %}<strong>{{ s.username }}</strong>{% else %}<span class="line"></span>{% endif %}<br>
-      Student ID {% if s and s.student_number %}<strong>{{ s.student_number }}</strong>{% else %}<span class="line"></span>{% endif %}
+    <div class="omr-who">
+      <div><span>Name</span>{% if s.user %}<strong>{{ s.user.display_name }}</strong>{% else %}<i></i>{% endif %}</div>
+      <div><span>Username</span>{% if s.user %}<strong>{{ s.user.username }}</strong>{% else %}<i></i>{% endif %}</div>
+      <div><span>Student ID</span>{% if s.user and s.user.student_number %}<strong>{{ s.user.student_number }}</strong>{% else %}<i></i>{% endif %}</div>
+      <div><span>Page</span><strong>{{ lay.page }} of {{ lay.pages }}</strong></div>
     </div>
   </div>
-  <div class="bubble-cols">
-  {% for item in assessment.items %}{% set q = item.question %}
-    <div class="bubble-row"><span class="n">{{ loop.index }}</span>
-      {% if q.qtype == 'tf' %}<span class="bubble">T</span><span class="bubble">F</span>
-      {% elif q.has_choices %}{% for c in q.choices %}<span class="bubble">{{ loop.index0|letter }}</span>{% endfor %}
-      {% else %}<span class="writebox"></span>{% endif %}
-    </div>
-  {% endfor %}
+  <div class="omr-foot" style="left: {{ off + 14 }}mm; top: {{ off + geo.AREA_BOTTOM + 1 }}mm; width: {{ geo.FRAME_W - 28 }}mm">
+    Sheet {{ s.sheet.id }}{% if not s.user %}: blank sheet, choose the student when scanning{% endif %}. Scan this page with Scholar, Paper and printing, Scan answer sheets.
   </div>
-  <p class="sheet-foot">Essay and written answers go in the booklet. Scored by ________&nbsp;&nbsp; Total ______ of {{ assessment.max_score|num }}</p>
-</div>
+</section>
 {% endfor %}
 <script src="{{ url_for('static', filename='js/app.js') }}?v={{ app_version }}"></script>
 </body>

@@ -8,3 +8,7 @@ Flask-WTF==1.2.2
 ldap3==2.9.1
 psycopg2-binary==2.9.10
 gunicorn==23.0.0
+# Answer-sheet scanning (optional at runtime: the app works without them, scanning is disabled).
+# Prebuilt wheels exist for x86_64 and arm64; 32-bit ARM servers skip them.
+numpy==2.2.6; platform_machine != "armv7l"
+opencv-python-headless==4.10.0.84; platform_machine != "armv7l"

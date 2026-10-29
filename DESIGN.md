@@ -94,6 +94,7 @@ Flat. Paper does not float. The only raised element is the sticky bar while sitt
 ## Components
 
 - **Answer bubble (signature):** a circle with the choice letter in dropout ink; selected = filled graphite with a paper letter. Used for answer choices, the question navigator (answered = filled), the answer key in review and print, and the 10px status marks (open = filled, upcoming/draft = empty, closed = crossed).
+- **Scannable answer sheet:** one full page per student per printed page, laid out in millimetres by `scholar/omr.py` (the template only places what that module computes). Four 8 mm black corner squares and a row of 3 mm code squares are drawn in SVG so they print even with "background graphics" off; they are the only pure black on the sheet and must stay solid black. Bubbles are dropout-green rings with the letter in a pale green inside, so pencil is the darkest thing in a bubble. Don't resize, recolour or move these marks in CSS: the reader expects them exactly where `omr.py` says.
 - **Tally:** a run of real numbers set inline (`7 submitted   0 in progress   7 awaiting grading`), not a row of identical stat boxes. A number turns red pen only when it asks for action.
 - **Buttons:** primary graphite fill; secondary paper with a graphite border; danger in red pen. All have hover, active, `:focus-visible` (2px graphite outline, 2px offset) and disabled states.
 - **Notes:** an explanation is introduced by a dropout label; an instructor's feedback is set in red-pen serif italic, like a margin note. No coloured side stripes.

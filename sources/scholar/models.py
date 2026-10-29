@@ -410,3 +410,62 @@ class AuditLog(db.Model):
     ip = db.Column(db.String(64), nullable=False, default="")
 
     user = db.relationship("User")
+
+
+# --------------------------------------------------------------------------- scanned answer sheets
+
+
+class AnswerSheet(db.Model):
+    """One printed page of an answer sheet. Its id is encoded on the paper, and the layout
+    is frozen here so a photo is always read against exactly what was printed."""
+
+    __tablename__ = "answer_sheets"
+
+    id = db.Column(db.Integer, primary_key=True)
+    assessment_id = db.Column(db.Integer, db.ForeignKey("assessments.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))  # empty = blank sheet
+    page = db.Column(db.Integer, nullable=False, default=1)
+    pages = db.Column(db.Integer, nullable=False, default=1)
+    layout = db.Column(db.Text, nullable=False)
+    layout_hash = db.Column(db.String(64), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+    assessment = db.relationship("Assessment", backref=db.backref("answer_sheets", cascade="all, delete-orphan"))
+    user = db.relationship("User")
+
+    def get_layout(self):
+        return json.loads(self.layout)
+
+
+class SheetScan(db.Model):
+    """A photo of an answer sheet and what was read from it."""
+
+    __tablename__ = "sheet_scans"
+
+    id = db.Column(db.Integer, primary_key=True)
+    assessment_id = db.Column(db.Integer, db.ForeignKey("assessments.id", ondelete="CASCADE"), nullable=False, index=True)
+    sheet_id = db.Column(db.Integer, db.ForeignKey("answer_sheets.id", ondelete="SET NULL"))
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
+    uploaded_by_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    status = db.Column(db.String(20), nullable=False, default="review")  # review | ready | recorded | failed | replaced
+    filename = db.Column(db.String(255), nullable=False, default="")
+    error = db.Column(db.Text, nullable=False, default="")
+    result = db.Column(db.Text, nullable=False, default="{}")
+    image = db.deferred(db.Column(db.LargeBinary))  # straightened sheet (JPEG)
+    recorded_at = db.Column(db.DateTime)
+
+    assessment = db.relationship("Assessment", backref=db.backref("scans", cascade="all, delete-orphan", order_by="SheetScan.id"))
+    sheet = db.relationship("AnswerSheet")
+    user = db.relationship("User", foreign_keys=[user_id])
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_id])
+
+    def get_result(self):
+        try:
+            return json.loads(self.result or "{}")
+        except ValueError:
+            return {}
+
+    @property
+    def flag_count(self):
+        return sum(1 for r in self.get_result().get("items", {}).values() if r.get("flag"))

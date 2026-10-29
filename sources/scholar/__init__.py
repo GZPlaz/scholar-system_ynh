@@ -11,8 +11,8 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from .config import build_config
 from .extensions import csrf, db, login_manager
 
-__version__ = "1.0.0"
-SCHEMA_VERSION = 1
+__version__ = "1.1.0"
+SCHEMA_VERSION = 2  # 2: answer_sheets, sheet_scans (created by create_all)
 
 
 class PrefixMiddleware:
@@ -55,9 +55,9 @@ def create_app(overrides=None):
         app.wsgi_app = PrefixMiddleware(app.wsgi_app, app.config["APP_PREFIX"])
 
     from . import auth
-    from .views import admin, assessments, courses, main, questions, reports, standards, student
+    from .views import admin, assessments, courses, main, questions, reports, scans, standards, student
 
-    for module in (auth, main, admin, courses, standards, questions, assessments, student, reports):
+    for module in (auth, main, admin, courses, standards, questions, assessments, scans, student, reports):
         app.register_blueprint(module.bp)
 
     app.before_request(auth.try_sso_login)
@@ -134,7 +134,7 @@ def _register_error_handlers(app):
     app.register_error_handler(403, lambda e: render_error(403, "Access denied", "You don't have permission to view this page."))
     app.register_error_handler(404, lambda e: render_error(404, "Not found", "The page you requested does not exist."))
     app.register_error_handler(400, lambda e: render_error(400, "Bad request", getattr(e, "description", "") or "The request could not be processed."))
-    app.register_error_handler(413, lambda e: render_error(413, "File too large", "Uploads are limited to 10 MB."))
+    app.register_error_handler(413, lambda e: render_error(413, "File too large", "Uploads are limited to 25 MB."))
 
     @app.errorhandler(500)
     def server_error(e):

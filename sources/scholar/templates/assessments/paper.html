@@ -5,6 +5,31 @@
 {{ assessment_tabs(assessment, 'paper') }}
 <div class="grid grid-3">
   <section class="section">
+    <h3>1. Print</h3>
+    <p class="small muted">One answer sheet per student, a full page each (longer tests continue on further pages), with their name and a code Scholar reads back when you scan it. Print the booklet for the questions themselves.</p>
+    <div class="actions">
+      <a class="btn btn-sm btn-primary" href="{{ url_for('assessments.bubble_sheets', assessment_id=assessment.id) }}" target="_blank">Answer sheets for the class</a>
+      <a class="btn btn-sm" href="{{ url_for('assessments.print_test', assessment_id=assessment.id) }}" target="_blank">Booklet</a>
+      <a class="btn btn-sm" href="{{ url_for('assessments.print_test', assessment_id=assessment.id, key=1) }}" target="_blank">Answer key</a>
+      <a class="btn btn-sm" href="{{ url_for('assessments.bubble_sheets', assessment_id=assessment.id, blank=1) }}" target="_blank">A blank sheet</a>
+    </div>
+  </section>
+  <section class="section">
+    <h3>2. Scan</h3>
+    <p class="small muted">Photograph the completed sheets with your phone or upload photos. Scholar reads the bubbles and records clean sheets in one go; you check the rest.</p>
+    <a class="btn btn-sm btn-primary" href="{{ url_for('scans.index', assessment_id=assessment.id) }}">Scan answer sheets{% set waiting = assessment.scans|selectattr('status', 'equalto', 'review')|list|length %}{% if waiting %} ({{ waiting }} to check){% endif %}</a>
+  </section>
+  <section class="section">
+    <h3>Or type them in</h3>
+    <p class="small muted">Open a student below and type what they marked: <code>B</code>, <code>AC</code> for several, <code>T</code> or <code>F</code>, written answers, or essay points. Or import a CSV with <code>username</code> and <code>q1</code> to <code>q{{ assessment.items|length }}</code>.</p>
+    <form method="post" action="{{ url_for('assessments.paper_import', assessment_id=assessment.id) }}" enctype="multipart/form-data" class="actions">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="file" name="file" accept=".csv,text/csv" required aria-label="CSV file" style="max-width:240px">
+      <button class="btn btn-sm" type="submit">Import CSV</button>
+    </form>
+  </section>
+</div>
+<section class="section">
     <h3>Print the papers</h3>
     <p class="small muted">The booklet, the answer key, and answer sheets with each enrolled student's name already filled in.</p>
     <div class="actions">
@@ -40,7 +65,8 @@
       <td>{{ r.user.student_number }}</td>
       <td>{% if r.attempt %}<span class="badge badge-green">Entered {{ r.attempt.submitted_at|dt }}</span>{% else %}<span class="badge">Not entered</span>{% endif %}</td>
       <td class="num">{% if r.attempt %}{{ r.attempt.score|num }} of {{ r.attempt.max_score|num }} ({{ r.attempt.percent|pct }}){% else %}–{% endif %}</td>
-      <td class="right"><a class="btn btn-sm {{ '' if r.attempt else 'btn-primary' }}" href="{{ url_for('assessments.paper_entry', assessment_id=assessment.id, user_id=r.user.id) }}">{{ 'Edit' if r.attempt else 'Enter' }}</a></td>
+      <td class="right nowrap"><a class="btn btn-sm" href="{{ url_for('assessments.bubble_sheets', assessment_id=assessment.id, student=r.user.id) }}" target="_blank">Print sheet</a>
+        <a class="btn btn-sm" href="{{ url_for('assessments.paper_entry', assessment_id=assessment.id, user_id=r.user.id) }}">{{ 'Edit' if r.attempt else 'Type in' }}</a></td>
     </tr>
     {% else %}
     <tr><td colspan="5" class="empty">No students are enrolled in this course.</td></tr>

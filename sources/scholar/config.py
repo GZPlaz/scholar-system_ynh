@@ -56,7 +56,7 @@ def build_config():
         "PERMANENT_SESSION_LIFETIME": 60 * 60 * 12,
         # Exams can last hours: never expire the CSRF token while the page is open.
         "WTF_CSRF_TIME_LIMIT": None,
-        "MAX_CONTENT_LENGTH": 10 * 1024 * 1024,
+        "MAX_CONTENT_LENGTH": 25 * 1024 * 1024,  # phone photos of answer sheets
         "LDAP_ENABLED": _bool("SCHOLAR_LDAP_ENABLED", False),
         "LDAP_URI": os.environ.get("SCHOLAR_LDAP_URI", "ldap://127.0.0.1:389"),
         "LDAP_USER_BASE": os.environ.get("SCHOLAR_LDAP_USER_BASE", "ou=users,dc=yunohost,dc=org"),

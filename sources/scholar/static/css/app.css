@@ -354,15 +354,6 @@ textarea.answer-input { min-height: 10rem; }
 .paper .pq li.key { font-weight: 700; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
 .paper .write-lines { border-bottom: 1px solid #9aa391; height: 1.9rem; }
 .paper .key-answer { font-family: var(--exam); font-weight: 700; font-size: 1.05rem; }
-.bubble-sheet { max-width: 800px; margin: 0 auto var(--s6); padding: var(--s5); break-after: page; }
-.bubble-sheet .paper-header { border-bottom-color: var(--dropout); }
-.bubble-sheet .paper-header h2 { color: var(--dropout); margin: 2px 0; }
-.bubble-cols { columns: 3; column-gap: var(--s6); }
-.bubble-row { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; break-inside: avoid; }
-.bubble-row .n { width: 2rem; text-align: right; font-weight: 700; color: var(--dropout); }
-.bubble-row .bubble { width: 22px; height: 22px; font-size: .7rem; }
-.bubble-row .writebox { border: 1.5px solid var(--dropout); height: 22px; width: 8.5rem; border-radius: var(--field-radius); }
-.sheet-foot { margin-top: var(--s5); padding-top: var(--s3); border-top: 1px solid var(--dropout); color: var(--dropout); font-size: .867rem; }
 
 @media print {
   @page { margin: 14mm; }
@@ -373,17 +364,21 @@ textarea.answer-input { min-height: 10rem; }
   .section { break-inside: avoid; }
   .page-break { break-after: page; }
   a { text-decoration: none; }
-  .bubble, .lvl-mastered, .lvl-approaching, .lvl-not-yet, .bubble-row .writebox { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .bubble, .lvl-mastered, .lvl-approaching, .lvl-not-yet { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 
 @media (max-width: 640px) {
   main.container, .site-header-inner { padding-left: var(--s4); padding-right: var(--s4); }
+  .site-header-inner { gap: var(--s2) var(--s4); }
+  .site-nav { order: 3; flex: 1 0 100%; flex-wrap: nowrap; overflow-x: auto; margin: 0 calc(-1 * var(--s2)); }
+  .site-nav a { white-space: nowrap; }
+  .who { margin-left: auto; }
+  .facts > span { white-space: normal; }
   .take-bar { margin-left: calc(-1 * var(--s4)); margin-right: calc(-1 * var(--s4)); padding: var(--s2) var(--s4); }
   .question { grid-template-columns: 2rem minmax(0, 1fr); }
   .submit-row { padding-left: 0; }
   h1 { font-size: 1.6rem; }
   .summary-stats { grid-template-columns: repeat(2, auto); }
-  .bubble-cols { columns: 2; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -392,3 +387,48 @@ textarea.answer-input { min-height: 10rem; }
 
 /* single-column forms inside a full-width page */
 .section.narrow, form.narrow { max-width: 760px; }
+
+/* ---------- scannable answer sheets (geometry lives in scholar/omr.py; don't restyle sizes here) */
+.omr-print { background: var(--band); }
+.omr-sheet { position: relative; margin: var(--s5) auto; background: var(--paper); outline: 1px solid var(--rule); outline-offset: 6mm; break-after: page; break-inside: avoid; color: #000; }
+.omr-svg { position: absolute; left: 0; top: 0; overflow: visible; }
+.omr-bubble { fill: none; stroke: var(--dropout); stroke-width: 0.25; }
+.omr-letter { font: 600 2.1px var(--ui); fill: #9db487; }
+.omr-n { font: 700 3px var(--ui); fill: var(--dropout); }
+.omr-box { fill: none; stroke: var(--dropout); stroke-width: 0.25; }
+.omr-note { font: italic 2.6px var(--ui); fill: var(--muted); }
+.omr-head { position: absolute; display: flex; justify-content: space-between; gap: 6mm; font-size: 3.2mm; line-height: 1.35; border-bottom: 0.4mm solid var(--dropout); }
+.omr-title { font: 700 5.4mm/1.15 var(--exam); margin: 1mm 0; }
+.omr-instr { font-size: 2.8mm; color: var(--muted); max-width: 95mm; }
+.omr-who { display: grid; gap: 1.2mm; min-width: 62mm; font-size: 3mm; }
+.omr-who div { display: grid; grid-template-columns: 19mm 1fr; align-items: end; }
+.omr-who span { color: var(--dropout); font-weight: 600; }
+.omr-who i { border-bottom: 0.25mm solid #000; height: 4mm; }
+.omr-foot { position: absolute; text-align: center; font-size: 2.5mm; color: var(--muted); }
+@media print {
+  .omr-print { background: none; }
+  .omr-sheet { margin: 0 auto; outline: 0; }
+  .omr-sheet:last-of-type { break-after: auto; }
+}
+
+/* ---------- scanning */
+.scan-buttons { display: flex; gap: var(--s3); flex-wrap: wrap; margin: var(--s2) 0 var(--s3); }
+.scan-pick { position: relative; cursor: pointer; padding: 12px 20px; font-size: 1rem; }
+.scan-pick:focus-within { outline: 2px solid var(--graphite); outline-offset: 2px; }
+.scan-tips { margin-bottom: var(--s3); }
+.scan-queue { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+.scan-queue li { display: flex; gap: var(--s3); align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--rule); flex-wrap: wrap; }
+.scan-queue .name { font-weight: 600; min-width: 12rem; }
+.scan-queue .err { color: var(--redpen); }
+.scan-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, 1fr); gap: var(--s6); align-items: start; }
+@media (max-width: 900px) { .scan-layout { grid-template-columns: 1fr; } }
+.scan-figure { margin: 0; position: sticky; top: var(--s4); }
+.scan-image { position: relative; border: 1px solid var(--rule-strong); line-height: 0; }
+.scan-image img { width: 100%; height: auto; display: block; }
+.scan-mark { position: absolute; aspect-ratio: 1; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 0 2px var(--dropout); }
+.scan-mark.faint { box-shadow: 0 0 0 2px var(--pencil-mark); }
+.scan-mark.flagged { box-shadow: 0 0 0 2.5px var(--redpen); }
+.scan-photo { max-width: 100%; border: 1px solid var(--rule-strong); }
+.scan-answers tr.flag-row td { background: var(--redpen-tint); }
+.scan-crop { position: relative; overflow: hidden; border: 1px solid var(--rule-strong); margin-bottom: 6px; background: var(--paper); }
+.scan-crop img { position: absolute; max-width: none; }
