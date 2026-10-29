@@ -1,0 +1,15 @@
+{# Static rendering of a question with its key. Expects `question`. #}
+<div class="stem">{{ question.stem|richtext }}</div>
+{% if question.has_choices %}
+  {% for c in question.choices %}
+  <div class="choice static {{ 'correct' if c.is_correct }}"><span class="letter">{{ loop.index0|letter }}</span><span>{{ c.text }}</span>{% if c.is_correct %}<span class="badge badge-green" style="margin-left:auto">Correct</span>{% endif %}</div>
+  {% endfor %}
+  {% if question.qtype == 'ms' %}<p class="small muted">{{ 'Partial credit allowed' if question.partial_credit else 'All-or-nothing scoring' }}</p>{% endif %}
+{% elif question.qtype == 'short' %}
+  <p><span class="label">Accepted answers{{ ' (case sensitive)' if question.case_sensitive }}:</span> {% for c in question.choices %}<code>{{ c.text }}</code> {% endfor %}</p>
+{% elif question.qtype == 'numeric' %}
+  <p><span class="label">Answer:</span> {{ question.numeric_answer|num(6) }}{% if question.numeric_tolerance %} ± {{ question.numeric_tolerance|num(6) }}{% endif %}</p>
+{% else %}
+  <p class="muted">Manually graded free response.</p>
+{% endif %}
+{% if question.explanation %}<div class="feedback"><strong>Explanation:</strong> {{ question.explanation|richtext }}</div>{% endif %}

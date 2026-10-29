@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "_macros.html" import post_button with context %}
+{% block title %}Standards{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Standards &amp; learning outcomes</h1><p class="subtitle">Align questions to standards to get mastery reporting.</p></div>
+  <div class="actions"><a class="btn" href="{{ url_for('standards.import_csv') }}">Import CSV</a><a class="btn btn-primary" href="{{ url_for('standards.edit') }}">New standard</a></div>
+</div>
+<form class="filters" method="get">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search code or title">
+  <select name="subject"><option value="">All subjects</option>{% for s in subjects %}<option {{ 'selected' if s == subject }}>{{ s }}</option>{% endfor %}</select>
+  <button class="btn" type="submit">Filter</button>
+</form>
+<div class="card table-wrap" style="padding:0">
+<table class="table">
+  <thead><tr><th>Code</th><th>Standard</th><th>Subject</th><th class="num">Questions</th><th></th></tr></thead>
+  <tbody>
+  {% for s in standards %}
+  <tr>
+    <td class="nowrap"><strong>{{ s.code }}</strong>{% if not s.active %} <span class="badge">Inactive</span>{% endif %}</td>
+    <td>{{ s.title }}{% if s.description %}<div class="small muted">{{ s.description }}</div>{% endif %}</td>
+    <td>{{ s.subject }}</td>
+    <td class="num"><a href="{{ url_for('questions.index', standard=s.id) }}">{{ s.questions|length }}</a></td>
+    <td class="right nowrap"><a class="btn btn-sm" href="{{ url_for('standards.edit', standard_id=s.id) }}">Edit</a>
+      {{ post_button(url_for('standards.delete', standard_id=s.id), 'Delete', cls='btn btn-sm btn-danger', confirm='Delete standard ' ~ s.code ~ '?') }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" class="empty">No standards yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

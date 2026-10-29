@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Import standards{% endblock %}
+{% block main_class %}narrow{% endblock %}
+{% block content %}
+<div class="breadcrumb"><a href="{{ url_for('standards.index') }}">Standards</a></div>
+<div class="page-header"><h1>Import standards</h1></div>
+<form method="post" enctype="multipart/form-data" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="field"><label for="file">CSV file</label><input type="file" id="file" name="file" accept=".csv,text/csv"></div>
+  <div class="field"><label for="csv_text">…or paste CSV text</label><textarea id="csv_text" name="csv_text"></textarea></div>
+  <button class="btn btn-primary" type="submit">Import</button>
+  <p class="help mt">Columns: <code>code</code>, <code>title</code>, optional <code>description</code> and <code>subject</code>. Existing codes are updated.</p>
+  <pre class="answer-box small">code,title,subject
+MATH.ALG.1,Solve linear equations in one variable,Algebra
+MATH.ALG.2,Graph linear functions,Algebra</pre>
+</form>
+{% endblock %}

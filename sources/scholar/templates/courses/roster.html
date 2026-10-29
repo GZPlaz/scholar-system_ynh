@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% from "_macros.html" import course_tabs, post_button with context %}
+{% block title %}Roster · {{ course.code }}{% endblock %}
+{% block content %}
+{{ course_tabs(course, 'roster') }}
+<div class="layout-side">
+  <div class="card table-wrap" style="padding:0">
+    <table class="table">
+      <thead><tr><th>Student</th><th>Username</th><th>Student ID</th><th>Email</th><th></th></tr></thead>
+      <tbody>
+      {% for s in course.students %}
+      <tr>
+        <td><a href="{{ url_for('reports.student', course_id=course.id, user_id=s.id) }}">{{ s.display_name }}</a>{% if not s.active %} <span class="badge badge-red">Inactive</span>{% endif %}</td>
+        <td>{{ s.username }}</td><td>{{ s.student_number }}</td><td class="small">{{ s.email }}</td>
+        <td class="right">{{ post_button(url_for('courses.roster', course_id=course.id), 'Remove', cls='btn btn-sm btn-danger', confirm='Remove ' ~ s.display_name ~ ' from ' ~ course.code ~ '?', fields={'action': 'remove', 'user_id': s.id}) }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="empty">No students enrolled yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div>
+    <div class="card">
+      <h3>Enroll students</h3>
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="add">
+        <div class="field"><label for="usernames">Usernames or student IDs</label><textarea id="usernames" name="usernames" rows="4" placeholder="jdoe&#10;asmith, MA2026003"></textarea>
+          <div class="help">Separate with spaces, commas or new lines. Accounts must already exist{% if current_user.is_admin %} (<a href="{{ url_for('admin.import_users') }}">import users</a>){% endif %}.</div></div>
+        <button class="btn btn-primary btn-sm" type="submit">Enroll</button>
+      </form>
+    </div>
+    <div class="card">
+      <h3>Import roster (CSV)</h3>
+      <form method="post" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="import">
+        <div class="field"><input type="file" name="file" accept=".csv,text/csv"><div class="help">A column named <code>username</code> or <code>student_id</code>.</div></div>
+        <button class="btn btn-sm" type="submit">Import</button>
+      </form>
+    </div>
+    <div class="card">
+      <h3>Instructors</h3>
+      <ul class="small">{% for i in course.instructors %}<li>{{ i.display_name }} ({{ i.username }})
+        {% if current_user.is_admin %}{{ post_button(url_for('courses.roster', course_id=course.id), '×', cls='btn-link', fields={'action': 'remove_instructor', 'username': i.username}) }}{% endif %}</li>
+      {% else %}<li class="muted">None assigned</li>{% endfor %}</ul>
+      {% if current_user.is_admin %}
+      <form method="post" class="actions">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="add_instructor">
+        <input type="text" name="username" placeholder="instructor username" style="flex:1" required>
+        <button class="btn btn-sm" type="submit">Add</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

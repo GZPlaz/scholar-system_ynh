@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Import users{% endblock %}
+{% block content %}
+<div class="page-header"><h1>Import users</h1></div>
+{% include "admin/_nav.html" %}
+<div class="grid grid-2">
+<div class="card">
+  <h2>Upload a CSV file</h2>
+  <form method="post" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="field"><label for="file">CSV file</label><input type="file" id="file" name="file" accept=".csv,text/csv"></div>
+    <div class="field"><label for="csv_text">…or paste CSV text</label><textarea id="csv_text" name="csv_text" placeholder="username,full_name,email,role,student_id,course"></textarea></div>
+    <button class="btn btn-primary" type="submit">Import</button>
+    <p class="help mt">Existing usernames are updated (name, email, ID, role). If new local accounts get generated passwords, a CSV listing them is downloaded automatically — distribute it securely.</p>
+  </form>
+</div>
+<div class="card">
+  <h2>Format</h2>
+  <p>First row must be a header. Recognised columns (only <code>username</code> is required):</p>
+  <table class="table compact">
+    <tr><td><code>username</code></td><td>Login name (letters, digits, <code>. _ - @</code>)</td></tr>
+    <tr><td><code>full_name</code> / <code>name</code></td><td>Display name</td></tr>
+    <tr><td><code>email</code></td><td>Email address</td></tr>
+    <tr><td><code>student_id</code></td><td>Institution ID number</td></tr>
+    <tr><td><code>role</code></td><td><code>student</code> (default), <code>instructor</code> or <code>admin</code></td></tr>
+    <tr><td><code>auth</code></td><td><code>local</code> (default) or <code>yunohost</code></td></tr>
+    <tr><td><code>password</code></td><td>Initial password for local accounts (optional)</td></tr>
+    <tr><td><code>course</code></td><td>Course code to enroll in / assign as instructor (optional)</td></tr>
+  </table>
+  <pre class="answer-box small">username,full_name,email,student_id,role,course
+jdoe,Jane Doe,jane@mindaccel.org,MA2026001,student,MATH101
+asmith,Alan Smith,alan@mindaccel.org,,instructor,MATH101</pre>
+</div>
+</div>
+{% endblock %}

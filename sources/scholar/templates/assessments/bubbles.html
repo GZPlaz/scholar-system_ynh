@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Answer sheets — {{ assessment.title }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v={{ app_version }}">
+  <style>body { background: #fff; color: #000; } :root { color-scheme: light; } .bubble-sheet { padding: 1.5rem; }</style>
+</head>
+<body>
+<div class="no-print" style="padding: .75rem 1.5rem; background: #f0f2f5; display:flex; gap:.5rem; align-items:center">
+  <button class="btn btn-primary" data-print>Print {{ students|length }} sheet(s)</button>
+  <a class="btn" href="{{ url_for('assessments.paper', assessment_id=assessment.id) }}">Back</a>
+</div>
+{% for s in students %}
+<div class="bubble-sheet">
+  <div class="paper-header">
+    <div>
+      <div><strong>{{ institution_name }}</strong> · {{ assessment.course.code }}</div>
+      <h2 style="margin:.2rem 0">{{ assessment.title }} — Answer sheet</h2>
+      <div class="small">Fill one bubble per question completely with a dark pen or pencil. For “select all” questions fill every correct bubble.</div>
+    </div>
+    <div style="line-height:2.2; min-width: 280px">
+      Name: {% if s %}<strong>{{ s.display_name }}</strong>{% else %}<span class="line"></span>{% endif %}<br>
+      Username: {% if s %}<strong>{{ s.username }}</strong>{% else %}<span class="line"></span>{% endif %}<br>
+      Student ID: {% if s and s.student_number %}<strong>{{ s.student_number }}</strong>{% else %}<span class="line"></span>{% endif %}
+    </div>
+  </div>
+  <div class="bubble-cols">
+  {% for item in assessment.items %}{% set q = item.question %}
+    <div class="bubble-row"><span class="n">{{ loop.index }}</span>
+      {% if q.qtype == 'tf' %}<span class="bubble">T</span><span class="bubble">F</span>
+      {% elif q.has_choices %}{% for c in q.choices %}<span class="bubble">{{ loop.index0|letter }}</span>{% endfor %}
+      {% else %}<span class="writebox"></span>{% endif %}
+    </div>
+  {% endfor %}
+  </div>
+  <p class="small" style="margin-top:1.5rem">Essay and written answers go in the test booklet. Scored by: ________ &nbsp; Total: ______ / {{ assessment.max_score|num }}</p>
+</div>
+{% endfor %}
+<script src="{{ url_for('static', filename='js/app.js') }}?v={{ app_version }}"></script>
+</body>
+</html>

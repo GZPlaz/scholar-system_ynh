@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% from "_macros.html" import assessment_tabs, post_button with context %}
+{% block title %}{{ attempt.user.display_name }} · {{ assessment.title }}{% endblock %}
+{% block content %}
+{{ assessment_tabs(assessment, 'results') }}
+<div class="page-header">
+  <div><h2 style="margin:0">{{ attempt.user.display_name }} <span class="muted small">{{ attempt.user.username }}</span></h2>
+    <p class="subtitle">Attempt {{ attempt.number }} · {{ 'Paper (entered by ' ~ (attempt.entered_by.display_name if attempt.entered_by else '?') ~ ')' if attempt.source == 'paper' else 'Online' }} ·
+      started {{ attempt.started_at|dt }}{% if attempt.submitted_at %} · submitted {{ attempt.submitted_at|dt }}{% endif %}</p></div>
+  <div class="actions">
+    <div class="stat" style="padding:.4rem .8rem"><div class="value">{{ attempt.score|num }} / {{ attempt.max_score|num }}</div><div class="label">{{ attempt.percent|pct }}{{ ' · grading pending' if attempt.needs_grading }}</div></div>
+    {{ post_button(url_for('assessments.delete_attempt', assessment_id=assessment.id, attempt_id=attempt.id), 'Delete attempt', cls='btn btn-danger', confirm='Delete this attempt permanently? The student will be able to take the assessment again.') }}
+  </div>
+</div>
+{% if attempt.status != 'submitted' %}
+<div class="flash flash-info">This attempt is still in progress{% if attempt.deadline %} (deadline {{ attempt.deadline|dt }}){% endif %}. Answers shown are the latest autosave.</div>
+{% endif %}
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% with grading=attempt.status == 'submitted' %}{% include "_attempt_items.html" %}{% endwith %}
+  {% if attempt.status == 'submitted' %}
+  <div class="card actions" style="position:sticky; bottom:0">
+    <button class="btn btn-primary" type="submit">Save grades</button>
+    <button class="btn" type="submit" name="next_pending" value="1">Save &amp; next ungraded attempt</button>
+    <span class="help">Entering points overrides the automatic score for that question.</span>
+  </div>
+  {% endif %}
+</form>
+{% endblock %}

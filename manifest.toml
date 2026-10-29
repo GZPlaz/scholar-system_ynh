@@ -1,0 +1,69 @@
+#:schema https://raw.githubusercontent.com/YunoHost/apps/main/schemas/manifest.v2.schema.json
+
+packaging_format = 2
+
+id = "scholar-system"
+name = "Scholar System"
+description.en = "Standards-based assessment, online testing and mastery tracking for universities"
+description.fr = "Évaluations par compétences, examens en ligne et suivi de la maîtrise pour les universités"
+
+version = "1.0.0~ynh1"
+
+maintainers = []
+
+[upstream]
+license = "MIT"
+code = "https://github.com/GZPlaz/scholar-system_ynh"
+
+[integration]
+yunohost = ">= 12.0.9"
+helpers_version = "2.1"
+architectures = "all"
+multi_instance = true
+ldap = true
+sso = true
+disk = "250M"
+ram.build = "300M"
+ram.runtime = "250M"
+
+[install]
+    [install.domain]
+    type = "domain"
+
+    [install.path]
+    type = "path"
+    default = "/scholar"
+
+    [install.init_main_permission]
+    help.en = "Choose 'visitors' if some students only have local Scholar accounts (created by an administrator) and no YunoHost account. Choose 'all_users' to restrict the app to YunoHost users."
+    type = "group"
+    default = "visitors"
+
+    [install.admin]
+    help.en = "This YunoHost user becomes the first Scholar administrator."
+    type = "user"
+
+    [install.institution_name]
+    ask.en = "Name of your institution"
+    ask.fr = "Nom de votre établissement"
+    help.en = "Shown in the interface and on printed tests. Can be changed later in Scholar's settings."
+    type = "string"
+    default = "MindAccel University"
+
+[resources]
+    [resources.system_user]
+
+    [resources.install_dir]
+    group = "www-data:r-x"
+
+    [resources.permissions]
+    main.url = "/"
+
+    [resources.ports]
+    main.default = 8095
+
+    [resources.apt]
+    packages = "python3, python3-venv, python3-pip, postgresql"
+
+    [resources.database]
+    type = "postgresql"

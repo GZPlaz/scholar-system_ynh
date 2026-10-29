@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% from "_macros.html" import assessment_tabs, post_button with context %}
+{% block title %}{{ assessment.title }}{% endblock %}
+{% block content %}
+{% call assessment_tabs(assessment, 'builder') %}
+  <a class="btn" href="{{ url_for('assessments.preview', assessment_id=assessment.id) }}">Preview</a>
+  {% if assessment.status == 'draft' %}
+    {{ post_button(url_for('assessments.change_status', assessment_id=assessment.id), 'Publish', cls='btn btn-success', fields={'action': 'publish'}, confirm='Publish this assessment to students?') }}
+  {% elif assessment.status == 'published' %}
+    {% if not assessment.attempts %}{{ post_button(url_for('assessments.change_status', assessment_id=assessment.id), 'Back to draft', cls='btn', fields={'action': 'unpublish'}) }}{% endif %}
+    {{ post_button(url_for('assessments.change_status', assessment_id=assessment.id), 'Close now', cls='btn btn-danger', fields={'action': 'close'}, confirm='Close the assessment? In-progress attempts will be submitted.') }}
+  {% else %}
+    {{ post_button(url_for('assessments.change_status', assessment_id=assessment.id), 'Reopen', cls='btn', fields={'action': 'reopen'}) }}
+  {% endif %}
+{% endcall %}
+
+<div class="grid grid-4">
+  <div class="stat"><div class="value">{{ counts.submitted }}</div><div class="label">Submitted attempts</div></div>
+  <div class="stat"><div class="value">{{ counts.in_progress }}</div><div class="label">In progress</div></div>
+  <div class="stat {{ 'alert' if counts.to_grade }}"><div class="value">{{ counts.to_grade }}</div><div class="label">Awaiting grading</div></div>
+  <div class="stat"><div class="value">{{ assessment.course.enrollments|length }}</div><div class="label">Students in course</div></div>
+</div>
+
+<div class="layout-side mt">
+<div>
+  <div class="card" id="items">
+    <div class="card-header"><h2>Questions</h2>
+      {% if not assessment.is_locked %}<div class="actions">
+        <a class="btn btn-sm" href="{{ url_for('assessments.detail', assessment_id=assessment.id, bank=1) }}#bank">Add from bank</a>
+        <a class="btn btn-sm btn-primary" href="{{ url_for('questions.edit', assessment_id=assessment.id) }}">Write new question</a>
+      </div>{% endif %}</div>
+    {% if assessment.is_locked %}<div class="flash flash-info small">Students have started this assessment, so questions can't be added, removed or reordered. You can still edit question text/answer keys and point values — results are re-scored automatically.</div>{% endif %}
+    {% for item in assessment.items %}{% set q = item.question %}
+    <div class="question" style="box-shadow:none">
+      <div class="question-head">
+        <div><span class="qnum">{{ loop.index }}.</span> <span class="badge">{{ q.type_label }}</span>
+          {% for s in q.standards %}<span class="tag" title="{{ s.title }}">{{ s.code }}</span>{% endfor %}</div>
+        <div class="actions">
+          <form method="post" action="{{ url_for('assessments.item_action', assessment_id=assessment.id, item_id=item.id, action='points') }}" class="actions" style="gap:.25rem">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input class="points" type="number" step="any" min="0.01" name="points" value="{{ item.points|num if item.points is not none else '' }}" placeholder="{{ q.points|num }}" title="Points for this assessment (empty = question default)" aria-label="Points">
+            <button class="btn btn-sm" type="submit">pts</button>
+          </form>
+          {% if not assessment.is_locked %}
+          {{ post_button(url_for('assessments.item_action', assessment_id=assessment.id, item_id=item.id, action='up'), '↑') }}
+          {{ post_button(url_for('assessments.item_action', assessment_id=assessment.id, item_id=item.id, action='down'), '↓') }}
+          {{ post_button(url_for('assessments.item_action', assessment_id=assessment.id, item_id=item.id, action='remove'), 'Remove', cls='btn btn-sm btn-danger') }}
+          {% endif %}
+          {% if current_user.is_admin or q.owner_id == current_user.id %}<a class="btn btn-sm" href="{{ url_for('questions.edit', question_id=q.id, assessment_id=assessment.id) }}">Edit</a>{% endif %}
+        </div>
+      </div>
+      {% with question=q %}{% include "questions/_render.html" %}{% endwith %}
+    </div>
+    {% else %}
+    <div class="empty">No questions yet. Add some from the question bank or write new ones.</div>
+    {% endfor %}
+  </div>
+
+  {% if bank is not none %}
+  <div class="card" id="bank">
+    <div class="card-header"><h2>Add from the question bank</h2><a class="small" href="{{ url_for('assessments.detail', assessment_id=assessment.id) }}">Close</a></div>
+    <form class="filters" method="get" action="{{ url_for('assessments.detail', assessment_id=assessment.id) }}#bank">
+      <input type="hidden" name="bank" value="1">
+      <input type="search" name="q" value="{{ filters.q }}" placeholder="Search text or topic">
+      <select name="type"><option value="">All types</option>{% for k, v in QTYPES.items() %}<option value="{{ k }}" {{ 'selected' if filters.type == k }}>{{ v }}</option>{% endfor %}</select>
+      <select name="standard"><option value="">All standards</option>{% for s in standards %}<option value="{{ s.id }}" {{ 'selected' if filters.standard == s.id }}>{{ s.code }}</option>{% endfor %}</select>
+      <button class="btn" type="submit">Search</button>
+    </form>
+    <form method="post" action="{{ url_for('assessments.add_items', assessment_id=assessment.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="table-wrap" style="max-height:480px; overflow-y:auto">
+      <table class="table compact">
+        <thead><tr><th><input type="checkbox" data-check-all="question_ids" aria-label="Select all"></th><th>Question</th><th>Type</th><th>Standards</th><th class="num">Pts</th></tr></thead>
+        <tbody>
+        {% for q in bank %}
+        <tr><td><input type="checkbox" name="question_ids" value="{{ q.id }}" id="bq{{ q.id }}"></td>
+          <td><label for="bq{{ q.id }}">{{ q.stem_preview }}</label></td><td class="small nowrap">{{ q.type_label }}</td>
+          <td>{% for s in q.standards %}<span class="tag">{{ s.code }}</span>{% endfor %}</td><td class="num">{{ q.points|num }}</td></tr>
+        {% else %}<tr><td colspan="5" class="empty">No matching questions that aren't already in this assessment.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% if bank %}<button class="btn btn-primary mt" type="submit">Add selected questions</button>{% endif %}
+    </form>
+  </div>
+  {% endif %}
+</div>
+
+<div>
+  <div class="card">
+    <h3>Summary</h3>
+    <table class="table compact">
+      <tr><td>Availability</td><td>{% if assessment.opens_at %}{{ assessment.opens_at|dt }}{% else %}On publish{% endif %} → {% if assessment.closes_at %}{{ assessment.closes_at|dt }}{% else %}manual close{% endif %}</td></tr>
+      <tr><td>Time limit</td><td>{{ (assessment.time_limit_minutes ~ ' min') if assessment.time_limit_minutes else 'None' }}</td></tr>
+      <tr><td>Attempts</td><td>{{ assessment.max_attempts or 'Unlimited' }}</td></tr>
+      <tr><td>Delivery</td><td>{{ 'Online + paper' if assessment.allow_online else 'Paper only' }}{% if assessment.access_code %} · access code{% endif %}</td></tr>
+      <tr><td>Results</td><td>{{ SHOW_RESULTS[assessment.show_results] }}{% if assessment.results_released %} (released){% endif %}</td></tr>
+    </table>
+    <a class="btn btn-sm" href="{{ url_for('assessments.settings', assessment_id=assessment.id) }}">Edit settings</a>
+    {% if assessment.show_results != 'immediately' %}
+    {{ post_button(url_for('assessments.change_status', assessment_id=assessment.id), 'Hide results' if assessment.results_released else 'Release results now', fields={'action': 'release'}) }}
+    {% endif %}
+  </div>
+  <div class="card">
+    <h3>Standards coverage</h3>
+    {% for c in coverage %}
+      <div class="small" style="margin-bottom:.35rem"><span class="tag">{{ c.standard.code }}</span> {{ c['items'] }} item(s) · {{ c.points|num }} pts
+        <div class="pbar"><span style="width: {{ (100 * c.points / (assessment.max_score or 1))|round(1) }}%"></span></div></div>
+    {% else %}<p class="muted small">No questions are aligned to standards yet — mastery reports need alignments.</p>{% endfor %}
+  </div>
+  <div class="card">
+    <h3>Copy</h3>
+    <form method="post" action="{{ url_for('assessments.duplicate', assessment_id=assessment.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="field"><label for="dup-course">Duplicate into course</label>
+        <select id="dup-course" name="course_id">{% for c in other_courses %}<option value="{{ c.id }}" {{ 'selected' if c.id == assessment.course_id }}>{{ c.code }} {{ c.term }}</option>{% endfor %}</select></div>
+      <button class="btn btn-sm" type="submit">Duplicate</button>
+    </form>
+  </div>
+</div>
+</div>
+{% endblock %}

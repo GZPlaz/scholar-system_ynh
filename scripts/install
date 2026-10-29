@@ -1,0 +1,70 @@
+#!/bin/bash
+
+#=================================================
+# IMPORT GENERIC HELPERS
+#=================================================
+
+source _common.sh
+source /usr/share/yunohost/helpers
+
+#=================================================
+# INITIALIZE SETTINGS
+#=================================================
+
+timezone="$(cat /etc/timezone 2>/dev/null || true)"
+timezone="${timezone:-UTC}"
+ynh_app_setting_set --key=timezone --value="$timezone"
+
+secret_key="$(ynh_string_random --length=64)"
+ynh_app_setting_set --key=secret_key --value="$secret_key"
+
+#=================================================
+# APP INITIAL CONFIGURATION
+#=================================================
+ynh_script_progress "Setting up source files..."
+
+_scholar_setup_source
+
+ynh_script_progress "Installing Python dependencies (this may take a few minutes)..."
+
+_scholar_build_venv
+
+ynh_script_progress "Adding $app's configuration files..."
+
+_scholar_add_configs
+_scholar_set_permissions
+
+#=================================================
+# DATABASE INITIALIZATION
+#=================================================
+ynh_script_progress "Initializing the database..."
+
+_scholar_manage init-db --admin "$admin" --institution "$institution_name" --timezone "$timezone"
+
+#=================================================
+# SYSTEM CONFIGURATION
+#=================================================
+ynh_script_progress "Adding system configurations related to $app..."
+
+ynh_config_add_nginx
+
+ynh_config_add_systemd
+
+yunohost service add "$app" --description="Scholar System assessment platform" --log="/var/log/$app/$app.log"
+
+ynh_config_add_logrotate
+
+ynh_config_add_fail2ban --logpath="/var/log/$app/$app.log" --failregex="$_scholar_failregex"
+
+#=================================================
+# START SYSTEMD SERVICE
+#=================================================
+ynh_script_progress "Starting $app's systemd service..."
+
+ynh_systemctl --service="$app" --action="start" --log_path="/var/log/$app/$app.log" --wait_until="Booting worker"
+
+#=================================================
+# END OF SCRIPT
+#=================================================
+
+ynh_script_progress "Installation of $app completed"

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% from "_macros.html" import course_tabs, level_cell, legend with context %}
+{% block title %}Mastery · {{ course.code }}{% endblock %}
+{% block content %}
+{% call course_tabs(course, 'mastery') %}<a class="btn" href="{{ url_for('reports.mastery', course_id=course.id, format='csv') }}">Export CSV</a>{% endcall %}
+{% if not standards %}
+<div class="card empty">No standards evidence yet. Align questions to standards and publish assessments to populate this report.</div>
+{% else %}
+<div class="card">
+  <div class="card-header"><h2>Class overview by standard</h2>{{ legend() }}</div>
+  <table class="table compact">
+    <thead><tr><th>Standard</th><th class="num">Class mean</th><th style="width:40%">Distribution</th><th class="num">Mastered</th><th class="num">Approaching</th><th class="num">Not yet</th></tr></thead>
+    <tbody>
+    {% for s in standards %}{% set sm = summary[s.id] %}{% set total = sm.n or 1 %}
+    <tr>
+      <td><span class="tag">{{ s.code }}</span> {{ s.title|truncate(70) }}</td>
+      <td class="num lvl lvl-{{ sm.level }}">{{ sm.mean|pct(0) }}</td>
+      <td><div class="meter" title="{{ sm.dist.mastered }} mastered, {{ sm.dist.approaching }} approaching, {{ sm.dist['not-yet'] }} not yet">
+        <span class="m" style="width:{{ 100 * sm.dist.mastered / total }}%"></span><span class="a" style="width:{{ 100 * sm.dist.approaching / total }}%"></span><span class="n" style="width:{{ 100 * sm.dist['not-yet'] / total }}%"></span></div></td>
+      <td class="num">{{ sm.dist.mastered }}</td><td class="num">{{ sm.dist.approaching }}</td><td class="num">{{ sm.dist['not-yet'] }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+<div class="card table-wrap" style="padding:0">
+<table class="table compact mastery-grid">
+  <thead><tr><th style="vertical-align:bottom">Student</th>{% for s in standards %}<th class="std" title="{{ s.title }}"><span>{{ s.code }}</span></th>{% endfor %}</tr></thead>
+  <tbody>
+  {% for st in students %}{% set data = per_user.get(st.id, {}) %}
+  <tr>
+    <td class="nowrap"><a href="{{ url_for('reports.student', course_id=course.id, user_id=st.id) }}">{{ st.display_name }}</a></td>
+    {% for s in standards %}{{ level_cell(data.get(s.id)) }}{% endfor %}
+  </tr>
+  {% else %}
+  <tr><td colspan="{{ standards|length + 1 }}" class="empty">No students enrolled.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="small muted">Each cell = % of available points earned on questions aligned to that standard, across all published assessments (counted attempt per assessment). Ungraded essays are excluded until scored.</p>
+{% endif %}
+{% endblock %}

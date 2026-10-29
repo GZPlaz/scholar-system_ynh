@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% from "_macros.html" import course_tabs with context %}
+{% block title %}Gradebook · {{ course.code }}{% endblock %}
+{% block content %}
+{% call course_tabs(course, 'gradebook') %}<a class="btn" href="{{ url_for('reports.gradebook', course_id=course.id, format='csv') }}">Export CSV</a>{% endcall %}
+{% if not assessments %}
+<div class="card empty">No published assessments yet.</div>
+{% else %}
+<div class="card table-wrap" style="padding:0">
+<table class="table compact">
+  <thead><tr><th>Student</th>{% for a in assessments %}<th class="num"><a href="{{ url_for('assessments.results', assessment_id=a.id) }}" title="{{ a.title }}">{{ a.title|truncate(18, True, '…') }}</a></th>{% endfor %}<th class="num">Overall</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr>
+    <td class="nowrap"><a href="{{ url_for('reports.student', course_id=course.id, user_id=r.user.id) }}">{{ r.user.display_name }}</a></td>
+    {% for c in r.cells %}
+    <td class="num">{% if c %}<a href="{{ url_for('assessments.attempt_detail', assessment_id=c.assessment_id, attempt_id=c.id) }}">{{ c.percent|pct(0) }}</a>{% if c.needs_grading %}<sup title="Grading pending">*</sup>{% endif %}{% else %}<span class="muted">—</span>{% endif %}</td>
+    {% endfor %}
+    <td class="num"><strong>{{ r.overall|pct }}</strong></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="{{ assessments|length + 2 }}" class="empty">No students enrolled.</td></tr>
+  {% endfor %}
+  </tbody>
+  <tfoot><tr><td>Class average</td>{% for v in averages %}<td class="num">{{ v|pct(0) }}</td>{% endfor %}<td></td></tr></tfoot>
+</table>
+</div>
+<p class="small muted">Overall = total points earned ÷ total points attempted. * = grading pending.</p>
+{% endif %}
+{% endblock %}

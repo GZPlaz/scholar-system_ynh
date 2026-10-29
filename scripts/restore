@@ -1,0 +1,64 @@
+#!/bin/bash
+
+#=================================================
+# IMPORT GENERIC HELPERS
+#=================================================
+
+# Keep this path for calling _common.sh inside the execution's context of backup and restore scripts
+source ../settings/scripts/_common.sh
+source /usr/share/yunohost/helpers
+
+#=================================================
+# RESTORE THE APP MAIN DIR
+#=================================================
+ynh_script_progress "Restoring the app main directory..."
+
+ynh_restore "$install_dir"
+
+# The archive may come from a server with another Python version: rebuild the venv if needed.
+if ! "$install_dir/venv/bin/python" -c "import flask, sqlalchemy, psycopg2" >/dev/null 2>&1; then
+    ynh_script_progress "Rebuilding the Python environment..."
+    _scholar_build_venv
+fi
+
+_scholar_set_permissions
+
+#=================================================
+# RESTORE THE POSTGRESQL DATABASE
+#=================================================
+ynh_script_progress "Restoring the PostgreSQL database..."
+
+ynh_psql_db_shell < ./db.sql
+
+#=================================================
+# RESTORE SYSTEM CONFIGURATIONS
+#=================================================
+ynh_script_progress "Restoring system configurations related to $app..."
+
+ynh_restore "/etc/nginx/conf.d/$domain.d/$app.conf"
+
+ynh_restore "/etc/systemd/system/$app.service"
+systemctl enable "$app.service" --quiet
+
+yunohost service add "$app" --description="Scholar System assessment platform" --log="/var/log/$app/$app.log"
+
+ynh_restore "/etc/logrotate.d/$app"
+
+ynh_restore "/etc/fail2ban/jail.d/$app.conf"
+ynh_restore "/etc/fail2ban/filter.d/$app.conf"
+ynh_systemctl --service=fail2ban --action=reload
+
+#=================================================
+# RELOAD NGINX AND THE APP SERVICE
+#=================================================
+ynh_script_progress "Reloading NGINX web server and $app's service..."
+
+ynh_systemctl --service="$app" --action="start" --log_path="/var/log/$app/$app.log" --wait_until="Booting worker"
+
+ynh_systemctl --service=nginx --action=reload
+
+#=================================================
+# END OF SCRIPT
+#=================================================
+
+ynh_script_progress "Restoration completed for $app"

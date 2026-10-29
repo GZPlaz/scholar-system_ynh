@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "_macros.html" import course_tabs, post_button with context %}
+{% block title %}{{ 'Course settings' if course else 'New course' }}{% endblock %}
+{% block content %}
+{% set f = form or {} %}
+{% if course %}{{ course_tabs(course, 'edit') }}{% else %}<div class="page-header"><h1>New course</h1></div>{% endif %}
+<div class="card narrow">
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="form-row">
+    <div class="field"><label for="code">Course code</label><input type="text" id="code" name="code" value="{{ f.get('code', course.code if course else '') }}" placeholder="MATH101" required maxlength="40"></div>
+    <div class="field"><label for="term">Term</label><input type="text" id="term" name="term" value="{{ f.get('term', course.term if course else '') }}" placeholder="Fall 2026" maxlength="60"></div>
+  </div>
+  <div class="field"><label for="title">Title</label><input type="text" id="title" name="title" value="{{ f.get('title', course.title if course else '') }}" placeholder="Calculus I" required maxlength="200"></div>
+  <div class="field"><label for="description">Description</label><textarea id="description" name="description">{{ f.get('description', course.description if course else '') }}</textarea></div>
+  <label class="check"><input type="checkbox" name="archived" value="1" {{ 'checked' if course and course.archived }}> Archived (hidden from dashboards; results are kept)</label>
+  <div class="actions mt"><button class="btn btn-primary" type="submit">Save course</button><a class="btn" href="{{ url_for('courses.detail', course_id=course.id) if course else url_for('courses.index') }}">Cancel</a></div>
+</form>
+</div>
+{% if course %}
+<div class="card narrow">
+  <h2>Danger zone</h2>
+  <p class="muted small">Deleting removes the course and its assessments. Courses with student results are archived instead.</p>
+  {{ post_button(url_for('courses.delete', course_id=course.id), 'Delete course', cls='btn btn-danger', confirm='Delete ' ~ course.code ~ '?') }}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,84 @@
+#!/bin/bash
+
+#=================================================
+# IMPORT GENERIC HELPERS
+#=================================================
+
+source _common.sh
+source /usr/share/yunohost/helpers
+
+#=================================================
+# STOP SYSTEMD SERVICE
+#=================================================
+ynh_script_progress "Stopping $app's systemd service..."
+
+ynh_systemctl --service="$app" --action="stop" --log_path="/var/log/$app/$app.log"
+
+#=================================================
+# ENSURE DOWNWARD COMPATIBILITY
+#=================================================
+ynh_script_progress "Ensuring downward compatibility..."
+
+if [ -z "${secret_key:-}" ]; then
+    secret_key="$(ynh_string_random --length=64)"
+    ynh_app_setting_set --key=secret_key --value="$secret_key"
+fi
+
+if [ -z "${timezone:-}" ]; then
+    timezone="$(cat /etc/timezone 2>/dev/null || true)"
+    timezone="${timezone:-UTC}"
+    ynh_app_setting_set --key=timezone --value="$timezone"
+fi
+
+if [ -z "${institution_name:-}" ]; then
+    institution_name="MindAccel University"
+    ynh_app_setting_set --key=institution_name --value="$institution_name"
+fi
+
+#=================================================
+# UPGRADE CODE AND DEPENDENCIES
+#=================================================
+ynh_script_progress "Upgrading source files..."
+
+_scholar_setup_source
+
+ynh_script_progress "Rebuilding the Python environment (this may take a few minutes)..."
+
+_scholar_build_venv
+
+ynh_script_progress "Updating configuration..."
+
+_scholar_add_configs
+_scholar_set_permissions
+
+ynh_script_progress "Upgrading the database schema..."
+
+_scholar_manage upgrade-db
+
+#=================================================
+# REAPPLY SYSTEM CONFIGURATIONS
+#=================================================
+ynh_script_progress "Upgrading system configurations related to $app..."
+
+ynh_config_add_nginx
+
+ynh_config_add_systemd
+
+yunohost service add "$app" --description="Scholar System assessment platform" --log="/var/log/$app/$app.log"
+
+ynh_config_add_logrotate
+
+ynh_config_add_fail2ban --logpath="/var/log/$app/$app.log" --failregex="$_scholar_failregex"
+
+#=================================================
+# START SYSTEMD SERVICE
+#=================================================
+ynh_script_progress "Starting $app's systemd service..."
+
+ynh_systemctl --service="$app" --action="start" --log_path="/var/log/$app/$app.log" --wait_until="Booting worker"
+
+#=================================================
+# END OF SCRIPT
+#=================================================
+
+ynh_script_progress "Upgrade of $app completed"

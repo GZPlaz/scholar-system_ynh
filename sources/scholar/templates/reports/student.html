@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% from "_macros.html" import level_cell, legend with context %}
+{% block title %}{{ user.display_name }} · {{ course.code }}{% endblock %}
+{% block content %}
+<div class="breadcrumb"><a href="{{ url_for('courses.detail', course_id=course.id) }}">{{ course.code }}</a> / <a href="{{ url_for('courses.roster', course_id=course.id) }}">Roster</a></div>
+<div class="page-header">
+  <div><h1>{{ user.display_name }}</h1><p class="subtitle">{{ user.username }}{% if user.student_number %} · ID {{ user.student_number }}{% endif %}{% if user.email %} · {{ user.email }}{% endif %}</p></div>
+  <div class="actions"><button class="btn" data-print>Print report</button></div>
+</div>
+<div class="grid grid-2">
+  <div class="card">
+    <h2>Assessments</h2>
+    <table class="table compact">
+      <thead><tr><th>Assessment</th><th>Attempts</th><th class="num">Counted score</th></tr></thead>
+      <tbody>{% for r in rows %}
+      <tr><td>{{ r.assessment.title }}</td>
+        <td class="small">{% for a in r.attempts %}<a href="{{ url_for('assessments.attempt_detail', assessment_id=r.assessment.id, attempt_id=a.id) }}">#{{ a.number }}</a>{% if a.status == 'in_progress' %} (in progress){% endif %}{{ ', ' if not loop.last }}{% else %}<span class="muted">none</span>{% endfor %}</td>
+        <td class="num">{{ r.counted.percent|pct if r.counted else '—' }}</td></tr>
+      {% else %}<tr><td colspan="3" class="empty">No published assessments.</td></tr>{% endfor %}</tbody>
+    </table>
+  </div>
+  <div class="card">
+    <div class="card-header"><h2>Standards mastery</h2>{{ legend() }}</div>
+    <table class="table compact">
+      <tbody>{% for s in standards %}{% set st = stats.get(s.id) %}
+      <tr><td><span class="tag">{{ s.code }}</span> {{ s.title|truncate(60) }}</td>{{ level_cell(st) }}<td class="small muted">{{ LEVEL_LABELS[st.level if st else 'none'] }}</td></tr>
+      {% else %}<tr><td class="empty">No standards evidence yet.</td></tr>{% endfor %}</tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

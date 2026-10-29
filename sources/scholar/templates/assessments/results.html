@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% from "_macros.html" import assessment_tabs, post_button, histogram with context %}
+{% block title %}Results · {{ assessment.title }}{% endblock %}
+{% block content %}
+{% call assessment_tabs(assessment, 'results') %}
+  <a class="btn" href="{{ url_for('assessments.results', assessment_id=assessment.id, format='csv') }}">Export CSV</a>
+  {{ post_button(url_for('assessments.regrade', assessment_id=assessment.id), 'Re-score all', cls='btn', confirm='Re-score every submitted attempt against the current answer key? Manual grades are kept.') }}
+{% endcall %}
+{% if summary %}
+<div class="grid grid-2">
+  <div class="card">
+    <h3>Score distribution (%)</h3>
+    {{ histogram(summary) }}
+  </div>
+  <div class="grid grid-3" style="align-content:start">
+    <div class="stat"><div class="value">{{ summary.n }}</div><div class="label">Students scored</div></div>
+    <div class="stat"><div class="value">{{ summary.mean|pct }}</div><div class="label">Mean</div></div>
+    <div class="stat"><div class="value">{{ summary.median|pct }}</div><div class="label">Median</div></div>
+    <div class="stat"><div class="value">{{ summary.sd|round(1) }}</div><div class="label">Std. deviation</div></div>
+    <div class="stat"><div class="value">{{ summary.min|pct(0) }}</div><div class="label">Lowest</div></div>
+    <div class="stat"><div class="value">{{ summary.max|pct(0) }}</div><div class="label">Highest</div></div>
+  </div>
+</div>
+{% endif %}
+<div class="card table-wrap" style="padding:0">
+<table class="table">
+  <thead><tr><th>Student</th><th>Status</th><th>Attempts</th><th>Submitted</th><th class="num">Score</th><th class="num">%</th><th></th></tr></thead>
+  <tbody>
+  {% for r in rows %}{% set c = r.counted %}
+  <tr>
+    <td><a href="{{ url_for('reports.student', course_id=assessment.course_id, user_id=r.user.id) }}">{{ r.user.display_name }}</a> <span class="small muted">{{ r.user.username }}</span>{% if not r.enrolled %} <span class="badge">Not enrolled</span>{% endif %}</td>
+    <td>{% if r.status == 'needs grading' %}<span class="badge badge-amber">Needs grading</span>{% elif r.status == 'submitted' %}<span class="badge badge-green">Submitted</span>{% elif r.status == 'in progress' %}<span class="badge badge-blue">In progress</span>{% else %}<span class="badge">Not started</span>{% endif %}</td>
+    <td class="small">{% for a in r.attempts %}<a href="{{ url_for('assessments.attempt_detail', assessment_id=assessment.id, attempt_id=a.id) }}" title="{{ a.source }} · {{ a.status }}">#{{ a.number }}{% if a.source == 'paper' %}<sup>P</sup>{% endif %}</a>{{ ', ' if not loop.last }}{% endfor %}</td>
+    <td class="small">{{ c.submitted_at|dt if c else '—' }}</td>
+    <td class="num">{% if c %}{{ c.score|num }} / {{ c.max_score|num }}{% else %}—{% endif %}</td>
+    <td class="num">{% if c %}<strong>{{ c.percent|pct }}</strong>{% else %}—{% endif %}</td>
+    <td class="right nowrap">{% if c %}<a class="btn btn-sm" href="{{ url_for('assessments.attempt_detail', assessment_id=assessment.id, attempt_id=c.id) }}">{{ 'Grade' if c.needs_grading else 'View' }}</a>{% endif %}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7" class="empty">No students enrolled.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="small muted">Scores use each student's counted submitted attempt (best or latest, per the platform setting). <sup>P</sup> = paper attempt.</p>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Sign in{% endblock %}
+{% block content %}
+<div class="login-wrap">
+  <div class="card login-card">
+    <h1>Sign in</h1>
+    <p class="muted">{{ institution_name }} assessment platform</p>
+    {% if login_message %}<div class="flash flash-info">{{ login_message }}</div>{% endif %}
+    <form method="post" action="{{ url_for('auth.login') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+      <div class="field">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" value="{{ username or '' }}" autocomplete="username" autocapitalize="none" required autofocus>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Sign in</button>
+    </form>
+    {% if ldap_enabled %}<p class="help mt">University (YunoHost) accounts can sign in here with their usual username and password.</p>{% endif %}
+    {% if sso_enabled %}
+    <div class="divider">or</div>
+    <a class="btn" href="{{ url_for('auth.login_sso') }}">Continue with the YunoHost portal</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

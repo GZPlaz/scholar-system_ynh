@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit standard' if standard else 'New standard' }}{% endblock %}
+{% block main_class %}narrow{% endblock %}
+{% block content %}
+{% set f = form or {} %}
+<div class="breadcrumb"><a href="{{ url_for('standards.index') }}">Standards</a></div>
+<div class="page-header"><h1>{{ 'Edit ' ~ standard.code if standard else 'New standard' }}</h1></div>
+<form method="post" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="form-row">
+    <div class="field"><label for="code">Code</label><input type="text" id="code" name="code" value="{{ f.get('code', standard.code if standard else '') }}" placeholder="MATH.ALG.1" required maxlength="60"></div>
+    <div class="field"><label for="subject">Subject / strand</label><input type="text" id="subject" name="subject" value="{{ f.get('subject', standard.subject if standard else '') }}" placeholder="Algebra" maxlength="120"></div>
+  </div>
+  <div class="field"><label for="title">Title</label><input type="text" id="title" name="title" value="{{ f.get('title', standard.title if standard else '') }}" placeholder="Solve linear equations in one variable" required maxlength="300"></div>
+  <div class="field"><label for="description">Description</label><textarea id="description" name="description">{{ f.get('description', standard.description if standard else '') }}</textarea></div>
+  <label class="check"><input type="checkbox" name="active" value="1" {{ 'checked' if (standard.active if standard else True) }}> Active (available when tagging questions)</label>
+  <div class="actions mt"><button class="btn btn-primary" type="submit">Save</button><a class="btn" href="{{ url_for('standards.index') }}">Cancel</a></div>
+</form>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit user' if user else 'New user' }}{% endblock %}
+{% block content %}
+{% set f = form or {} %}
+<div class="page-header"><h1>{{ 'Edit ' ~ user.username if user else 'New user' }}</h1></div>
+{% include "admin/_nav.html" %}
+<div class="card narrow">
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="form-row">
+    <div class="field"><label for="username">Username</label>
+      <input type="text" id="username" name="username" value="{{ user.username if user else f.get('username', '') }}" {{ 'readonly' if user else 'required' }} autocapitalize="none">
+      <div class="help">For YunoHost users, use exactly their YunoHost username.</div></div>
+    <div class="field"><label for="role">Role</label>
+      <select id="role" name="role">{% for k, v in ROLES.items() %}<option value="{{ k }}" {{ 'selected' if (user.role if user else f.get('role', 'student')) == k }}>{{ v }}</option>{% endfor %}</select></div>
+  </div>
+  <div class="form-row">
+    <div class="field"><label for="full_name">Full name</label><input type="text" id="full_name" name="full_name" value="{{ user.full_name if user else f.get('full_name', '') }}"></div>
+    <div class="field"><label for="email">Email</label><input type="email" id="email" name="email" value="{{ user.email if user else f.get('email', '') }}"></div>
+    <div class="field"><label for="student_number">Student / staff ID</label><input type="text" id="student_number" name="student_number" value="{{ user.student_number if user else f.get('student_number', '') }}"></div>
+  </div>
+  {% set src = user.auth_source if user else f.get('auth_source', 'local') %}
+  <div class="field"><span class="label">Sign-in method</span>
+    <label class="check"><input type="radio" name="auth_source" value="local" {{ 'checked' if src == 'local' }}> Local Scholar account (password stored in Scholar)</label>
+    <label class="check"><input type="radio" name="auth_source" value="ldap" {{ 'checked' if src == 'ldap' }}> YunoHost account (password checked against YunoHost / SSO)</label>
+  </div>
+  <div class="form-row">
+    <div class="field"><label for="password">{{ 'Set new password' if user else 'Password' }}</label><input type="password" id="password" name="password" minlength="8" autocomplete="new-password">
+      <div class="help">Local accounts only. Leave empty to {{ 'keep the current password' if user else 'generate a temporary one' }}.</div></div>
+    <div class="field" style="align-self:center"><label class="check"><input type="checkbox" name="must_change_password" value="1" checked> Require a password change at next sign-in</label></div>
+  </div>
+  <label class="check"><input type="checkbox" name="active" value="1" {{ 'checked' if (user.active if user else True) }}> Account is active</label>
+  <div class="actions mt"><button class="btn btn-primary" type="submit">Save</button><a class="btn" href="{{ url_for('admin.users') }}">Cancel</a></div>
+</form>
+</div>
+{% endblock %}

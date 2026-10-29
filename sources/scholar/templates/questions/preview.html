@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% from "_macros.html" import post_button with context %}
+{% block title %}Question #{{ question.id }}{% endblock %}
+{% block main_class %}narrow{% endblock %}
+{% block content %}
+<div class="breadcrumb"><a href="{{ url_for('questions.index') }}">Question bank</a> / #{{ question.id }}</div>
+<div class="page-header">
+  <div><h1>{{ question.type_label }} · {{ question.points|num }} pt{{ 's' if question.points != 1 }}</h1>
+    <p class="subtitle">By {{ question.owner.display_name if question.owner else 'unknown' }} · updated {{ question.updated_at|dt }}</p></div>
+  <div class="actions">
+    {% if current_user.is_admin or question.owner_id == current_user.id %}
+      <a class="btn btn-primary" href="{{ url_for('questions.edit', question_id=question.id) }}">Edit</a>
+      {{ post_button(url_for('questions.delete', question_id=question.id), ('Restore' if question.archived else ('Archive' if question.items else 'Delete')), cls='btn btn-danger', confirm='Are you sure?') }}
+    {% endif %}
+    {{ post_button(url_for('questions.duplicate', question_id=question.id), 'Duplicate', cls='btn') }}
+  </div>
+</div>
+<div class="question">{% include "questions/_render.html" %}</div>
+<div class="card">
+  <p><span class="label">Standards</span>{% for s in question.standards %}<span class="tag">{{ s.code }}</span> {{ s.title }}<br>{% else %}<span class="muted">Not aligned to any standard.</span>{% endfor %}</p>
+  {% if question.topic %}<p><span class="label">Topic</span>{{ question.topic }}</p>{% endif %}
+  <p class="mb0"><span class="label">Used in</span>{% for a in usage %}<a href="{{ url_for('assessments.detail', assessment_id=a.id) }}">{{ a.course.code }} · {{ a.title }}</a><br>{% else %}<span class="muted">No assessments yet.</span>{% endfor %}</p>
+</div>
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% from "_macros.html" import assessment_tabs with context %}
+{% block title %}Paper · {{ assessment.title }}{% endblock %}
+{% block content %}
+{{ assessment_tabs(assessment, 'paper') }}
+<div class="grid grid-3">
+  <div class="card">
+    <h3>1 · Print</h3>
+    <p class="small muted">Print the test booklet, the answer key and pre-filled bubble answer sheets (one per enrolled student).</p>
+    <div class="actions">
+      <a class="btn btn-sm" href="{{ url_for('assessments.print_test', assessment_id=assessment.id) }}" target="_blank">Test booklet</a>
+      <a class="btn btn-sm" href="{{ url_for('assessments.print_test', assessment_id=assessment.id, key=1) }}" target="_blank">Answer key</a>
+      <a class="btn btn-sm" href="{{ url_for('assessments.bubble_sheets', assessment_id=assessment.id) }}" target="_blank">Answer sheets</a>
+      <a class="btn btn-sm" href="{{ url_for('assessments.bubble_sheets', assessment_id=assessment.id, blank=1) }}" target="_blank">Blank sheet</a>
+    </div>
+  </div>
+  <div class="card">
+    <h3>2 · Key in responses</h3>
+    <p class="small muted">Click a student below and type their letters (A, B, C… — <code>AC</code> for multiple select, <code>T</code>/<code>F</code> for true/false), text answers, or points for essays. Use “Save &amp; next” to move quickly through the class.</p>
+  </div>
+  <div class="card">
+    <h3>3 · …or import a CSV</h3>
+    <form method="post" action="{{ url_for('assessments.paper_import', assessment_id=assessment.id) }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="file" name="file" accept=".csv,text/csv" required>
+      <p class="help">Columns: <code>username</code> (or <code>student_id</code>), then <code>q1</code> … <code>q{{ assessment.items|length }}</code>. Re-importing replaces a student's paper answers.</p>
+      <button class="btn btn-sm" type="submit">Import</button>
+    </form>
+  </div>
+</div>
+<div class="card table-wrap" style="padding:0">
+<table class="table">
+  <thead><tr><th>Student</th><th>Student ID</th><th>Paper responses</th><th class="num">Score</th><th></th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr>
+    <td>{{ r.user.display_name }} <span class="small muted">{{ r.user.username }}</span></td>
+    <td>{{ r.user.student_number }}</td>
+    <td>{% if r.attempt %}<span class="badge badge-green">Entered</span> <span class="small muted">{{ r.attempt.submitted_at|dt }}</span>{% else %}<span class="badge">Not entered</span>{% endif %}</td>
+    <td class="num">{% if r.attempt %}{{ r.attempt.score|num }} / {{ r.attempt.max_score|num }} ({{ r.attempt.percent|pct }}){% else %}—{% endif %}</td>
+    <td class="right"><a class="btn btn-sm {{ '' if r.attempt else 'btn-primary' }}" href="{{ url_for('assessments.paper_entry', assessment_id=assessment.id, user_id=r.user.id) }}">{{ 'Edit' if r.attempt else 'Enter' }}</a></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" class="empty">No students enrolled in this course.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

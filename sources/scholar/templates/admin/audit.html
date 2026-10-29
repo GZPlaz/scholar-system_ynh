@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% from "_macros.html" import pagination_nav with context %}
+{% block title %}Audit log{% endblock %}
+{% block content %}
+<div class="page-header"><h1>Audit log</h1></div>
+{% include "admin/_nav.html" %}
+<div class="card table-wrap" style="padding:0">
+<table class="table compact">
+  <thead><tr><th>When</th><th>User</th><th>Action</th><th>Detail</th><th>IP</th></tr></thead>
+  <tbody>
+  {% for e in pagination.items %}
+  <tr><td class="nowrap small">{{ e.created_at|dt('%Y-%m-%d %H:%M:%S') }}</td><td>{{ e.user.username if e.user else '—' }}</td><td><code>{{ e.action }}</code></td><td class="small">{{ e.detail }}</td><td class="small muted">{{ e.ip }}</td></tr>
+  {% else %}<tr><td colspan="5" class="empty">Nothing logged yet.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+{{ pagination_nav(pagination, 'admin.audit') }}
+{% endblock %}

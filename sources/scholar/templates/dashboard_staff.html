@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge with context %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Welcome, {{ current_user.display_name }}</h1><p class="subtitle">{{ institution_name }} · {{ ROLES[current_user.role] }} dashboard</p></div>
+  <div class="actions">
+    <a class="btn" href="{{ url_for('questions.edit') }}">New question</a>
+    <a class="btn btn-primary" href="{{ url_for('courses.edit') }}">New course</a>
+  </div>
+</div>
+<div class="grid grid-4">
+  <div class="stat"><div class="value">{{ courses|length }}</div><div class="label">Active courses</div></div>
+  <div class="stat"><div class="value">{{ student_count }}</div><div class="label">Students enrolled</div></div>
+  <div class="stat"><div class="value">{{ open_count }}</div><div class="label">Open assessments (recent)</div></div>
+  <div class="stat {{ 'alert' if to_grade }}"><div class="value">{{ to_grade }}</div><div class="label">Attempts awaiting grading</div></div>
+</div>
+<div class="grid grid-2 mt">
+  <div class="card">
+    <div class="card-header"><h2>My courses</h2><a href="{{ url_for('courses.index') }}" class="small">All courses →</a></div>
+    {% if courses %}
+    <table class="table compact">
+      <thead><tr><th>Course</th><th>Term</th><th class="num">Students</th><th class="num">Assessments</th></tr></thead>
+      <tbody>{% for c in courses %}
+        <tr><td><a href="{{ url_for('courses.detail', course_id=c.id) }}">{{ c.code }}</a> <span class="muted">{{ c.title }}</span></td><td>{{ c.term }}</td><td class="num">{{ c.enrollments|length }}</td><td class="num">{{ c.assessments|length }}</td></tr>
+      {% endfor %}</tbody>
+    </table>
+    {% else %}<div class="empty">No courses yet. <a href="{{ url_for('courses.edit') }}">Create your first course</a>.</div>{% endif %}
+  </div>
+  <div class="card">
+    <div class="card-header"><h2>Recently updated assessments</h2></div>
+    {% if assessments %}
+    <table class="table compact">
+      <thead><tr><th>Assessment</th><th>Course</th><th>Status</th><th class="num">Submitted</th></tr></thead>
+      <tbody>{% for a in assessments %}
+        <tr><td><a href="{{ url_for('assessments.detail', assessment_id=a.id) }}">{{ a.title }}</a></td><td>{{ a.course.code }}</td><td>{{ status_badge(a) }}</td>
+          <td class="num">{{ a.attempts|selectattr('status', 'equalto', 'submitted')|list|length }}</td></tr>
+      {% endfor %}</tbody>
+    </table>
+    {% else %}<div class="empty">No assessments yet.</div>{% endif %}
+  </div>
+</div>
+<div class="card">
+  <h2>Getting started</h2>
+  <ol class="small">
+    <li>Define the <a href="{{ url_for('standards.index') }}">standards / learning outcomes</a> you assess (or import them from CSV).</li>
+    <li>Build your <a href="{{ url_for('questions.index') }}">question bank</a> and align each question to one or more standards.</li>
+    <li>Create a course, enroll students, then create an assessment and add questions from the bank.</li>
+    <li>Publish it for online testing, or print tests and bubble sheets and key in paper responses.</li>
+    <li>Review results, item analysis and the standards mastery grid to target re-teaching.</li>
+  </ol>
+</div>
+{% endblock %}

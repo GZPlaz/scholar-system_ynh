@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% from "_macros.html" import assessment_tabs, post_button with context %}
+{% block title %}{{ 'Assessment settings' if assessment else 'New assessment' }}{% endblock %}
+{% block content %}
+{% if assessment %}{{ assessment_tabs(assessment, 'settings') }}{% else %}
+<div class="breadcrumb"><a href="{{ url_for('courses.detail', course_id=course.id) }}">{{ course.code }}</a></div>
+<div class="page-header"><h1>New assessment</h1><p class="subtitle">{{ course.label }}</p></div>{% endif %}
+{% macro val(name, default='') -%}{{ form.get(name, default) if form is not none else default }}{%- endmacro %}
+{% macro checked(name, current) -%}{{ 'checked' if (form.get(name) if form is not none else current) }}{%- endmacro %}
+{% set a = assessment %}
+<form method="post" class="layout-side">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% if not assessment %}<input type="hidden" name="course_id" value="{{ course.id }}">{% endif %}
+  <div>
+    <div class="card">
+      <div class="field"><label for="title">Title</label><input type="text" id="title" name="title" value="{{ val('title', a.title if a else '') }}" required maxlength="200" placeholder="Unit 3 Quiz"></div>
+      <div class="field"><label for="instructions">Instructions for students</label><textarea id="instructions" name="instructions" rows="4">{{ val('instructions', a.instructions if a else '') }}</textarea></div>
+    </div>
+    <div class="card">
+      <h3>Availability</h3>
+      <div class="form-row">
+        <div class="field"><label for="opens_at">Opens</label><input type="datetime-local" id="opens_at" name="opens_at" value="{{ val('opens_at', to_input_value(a.opens_at) if a else '') }}"><div class="help">Empty = as soon as published.</div></div>
+        <div class="field"><label for="closes_at">Closes</label><input type="datetime-local" id="closes_at" name="closes_at" value="{{ val('closes_at', to_input_value(a.closes_at) if a else '') }}"><div class="help">Empty = until you close it. In-progress attempts are submitted at this time.</div></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label for="tl">Time limit (minutes)</label><input type="number" id="tl" name="time_limit_minutes" min="1" value="{{ val('time_limit_minutes', a.time_limit_minutes or '' if a else '') }}" placeholder="No limit"></div>
+        <div class="field"><label for="ma">Attempts allowed</label><input type="number" id="ma" name="max_attempts" min="0" value="{{ val('max_attempts', a.max_attempts if a else 1) }}"><div class="help">0 = unlimited.</div></div>
+        <div class="field"><label for="ac">Access code</label><input type="text" id="ac" name="access_code" value="{{ val('access_code', a.access_code if a else '') }}" maxlength="60" placeholder="Optional"><div class="help">Proctor gives the code in the room.</div></div>
+      </div>
+      <label class="check"><input type="checkbox" name="allow_online" value="1" {{ checked('allow_online', a.allow_online if a else True) }}> Students can take this assessment online (uncheck for paper-only tests)</label>
+    </div>
+  </div>
+  <div>
+    <div class="card">
+      <h3>Delivery</h3>
+      <label class="check"><input type="checkbox" name="shuffle_questions" value="1" {{ checked('shuffle_questions', a.shuffle_questions if a else False) }}> Shuffle question order per student</label>
+      <label class="check"><input type="checkbox" name="shuffle_choices" value="1" {{ checked('shuffle_choices', a.shuffle_choices if a else False) }}> Shuffle answer options</label>
+    </div>
+    <div class="card">
+      <h3>Results</h3>
+      {% set sr = val('show_results', a.show_results if a else 'immediately') %}
+      {% for k, v in SHOW_RESULTS.items() %}<label class="check"><input type="radio" name="show_results" value="{{ k }}" {{ 'checked' if sr == k }}> {{ v }}</label>{% endfor %}
+      <label class="check mt"><input type="checkbox" name="show_correct_answers" value="1" {{ checked('show_correct_answers', a.show_correct_answers if a else False) }}> Reveal correct answers and explanations when results are shown</label>
+    </div>
+    <div class="card">
+      <button class="btn btn-primary" type="submit" style="width:100%;justify-content:center">{{ 'Save settings' if assessment else 'Create assessment' }}</button>
+    </div>
+  </div>
+</form>
+{% if assessment %}
+<div class="card">
+  <h2>Danger zone</h2>
+  <form method="post" action="{{ url_for('assessments.delete', assessment_id=assessment.id) }}" class="actions" data-confirm="Permanently delete this assessment and all of its results?">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if assessment.attempts %}<input type="text" name="confirm" placeholder="Type the exact title to confirm" style="max-width:320px">{% endif %}
+    <button class="btn btn-danger" type="submit">Delete assessment</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

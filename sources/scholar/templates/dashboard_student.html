@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge with context %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Welcome, {{ current_user.display_name }}</h1><p class="subtitle">Your assessments across {{ courses|length }} course(s).</p></div>
+  <div class="actions"><a class="btn" href="{{ url_for('student.my_progress') }}">My standards progress</a></div>
+</div>
+{% set active = rows|selectattr('state', 'equalto', 'open')|list %}
+<div class="card">
+  <div class="card-header"><h2>Assessments</h2></div>
+  {% if rows %}
+  <div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>Assessment</th><th>Course</th><th>Status</th><th>Availability</th><th>Attempts</th><th class="num">Score</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      {% set a = r.assessment %}
+      <tr>
+        <td><strong>{{ a.title }}</strong>{% if a.time_limit_minutes %}<div class="small muted">{{ a.time_limit_minutes }} min time limit</div>{% endif %}{% if not a.allow_online %}<div class="small muted">Paper test</div>{% endif %}</td>
+        <td>{{ r.course.code }}</td>
+        <td>{% if r.in_progress %}<span class="badge badge-amber">In progress</span>{% else %}{{ status_badge(a) }}{% endif %}</td>
+        <td class="small">{% if a.opens_at %}Opens {{ a.opens_at|dt }}<br>{% endif %}{% if a.closes_at %}Closes {{ a.closes_at|dt }}{% else %}<span class="muted">No closing date</span>{% endif %}</td>
+        <td>{{ r.submitted|length }}{% if a.max_attempts %} / {{ a.max_attempts }}{% endif %}</td>
+        <td class="num">{% if r.counted and r.results_visible %}{{ r.counted.percent|pct }}{% if r.counted.needs_grading %}<div class="small muted">grading pending</div>{% endif %}{% elif r.counted %}<span class="muted small">Submitted</span>{% else %}—{% endif %}</td>
+        <td class="right nowrap">
+          {% if r.in_progress %}<a class="btn btn-primary btn-sm" href="{{ url_for('student.take', attempt_id=r.in_progress.id) }}">Resume</a>
+          {% elif r.can_start %}<a class="btn btn-primary btn-sm" href="{{ url_for('student.start', assessment_id=a.id) }}">{{ 'Retake' if r.submitted else 'Start' }}</a>{% endif %}
+          {% if r.counted %}<a class="btn btn-sm" href="{{ url_for('student.review', attempt_id=r.counted.id) }}">Review</a>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="empty">No assessments have been published in your courses yet.</div>
+  {% endif %}
+</div>
+<div class="card">
+  <h2>My courses</h2>
+  {% if courses %}
+  <ul>{% for c in courses %}<li>{{ c.label }}</li>{% endfor %}</ul>
+  {% else %}<p class="muted">You are not enrolled in any course yet. Your instructor will add you to their roster.</p>{% endif %}
+</div>
+{% endblock %}

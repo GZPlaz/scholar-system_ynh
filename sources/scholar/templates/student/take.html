@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{{ assessment.title }}{% endblock %}
+{% block content %}
+{% if preview %}
+<div class="flash flash-info no-print">Preview mode — this is what students see. Answers are not saved. <a href="{{ url_for('assessments.detail', assessment_id=assessment.id) }}">Back to the assessment</a></div>
+{% endif %}
+<form method="post" id="take-form"
+      action="{{ url_for('student.submit', attempt_id=attempt.id) if attempt else '#' }}"
+      data-save-url="{{ url_for('student.autosave', attempt_id=attempt.id) if attempt else '' }}"
+      {% if preview %}data-preview{% endif %}>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="take-bar">
+    <div><strong>{{ assessment.title }}</strong> <span class="small muted" id="answered-count"></span></div>
+    <div class="qnav" aria-label="Question navigator">
+      {% for e in entries %}<a href="#q{{ loop.index }}" data-item="{{ e.item.id }}" title="Question {{ loop.index }}">{{ loop.index }}</a>{% endfor %}
+    </div>
+    <div class="actions">
+      <span class="save-state" id="save-state" aria-live="polite"></span>
+      {% if remaining is not none %}<span class="timer" id="timer" data-remaining="{{ remaining }}" role="timer" aria-label="Time remaining"></span>{% endif %}
+    </div>
+  </div>
+  {% if assessment.instructions %}<div class="card">{{ assessment.instructions|richtext }}</div>{% endif %}
+
+  {% for e in entries %}{% set item = e.item %}{% set q = item.question %}{% set ans = e.answer %}
+  <div class="question" id="q{{ loop.index }}" data-item="{{ item.id }}">
+    <input type="hidden" name="present_{{ item.id }}" value="1">
+    <div class="question-head">
+      <div><span class="qnum">Question {{ loop.index }}</span> <span class="small muted">· {{ item.effective_points|num }} pt{{ 's' if item.effective_points != 1 }}{% if q.qtype == 'ms' %} · select all that apply{% endif %}</span></div>
+      <button type="button" class="btn btn-sm flag-btn" data-item="{{ item.id }}">☆ Flag for review</button>
+    </div>
+    <div class="stem">{{ q.stem|richtext }}</div>
+    {% if q.qtype in ('mc', 'tf') %}
+      {% for c in e.choices %}
+      <label class="choice"><input type="radio" name="q_{{ item.id }}" value="{{ c.id }}" {{ 'checked' if ans == c.id }}><span class="letter">{{ loop.index0|letter }}</span><span>{{ c.text }}</span></label>
+      {% endfor %}
+    {% elif q.qtype == 'ms' %}
+      {% for c in e.choices %}
+      <label class="choice"><input type="checkbox" name="q_{{ item.id }}" value="{{ c.id }}" {{ 'checked' if ans and c.id in ans }}><span class="letter">{{ loop.index0|letter }}</span><span>{{ c.text }}</span></label>
+      {% endfor %}
+    {% elif q.qtype == 'short' %}
+      <input type="text" name="q_{{ item.id }}" value="{{ ans or '' }}" autocomplete="off" aria-label="Your answer" style="max-width:32rem">
+    {% elif q.qtype == 'numeric' %}
+      <input type="text" inputmode="decimal" name="q_{{ item.id }}" value="{{ ans or '' }}" autocomplete="off" aria-label="Your numeric answer" style="max-width:14rem">
+    {% else %}
+      <textarea name="q_{{ item.id }}" rows="8" aria-label="Your answer" spellcheck="true">{{ ans or '' }}</textarea>
+    {% endif %}
+  </div>
+  {% endfor %}
+  <div class="card actions">
+    <button class="btn btn-primary" type="submit">Submit answers</button>
+    <span class="help">You can come back to this page until you submit{% if remaining is not none %} or the time runs out{% endif %}.</span>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/take.js') }}?v={{ app_version }}"></script>{% endblock %}

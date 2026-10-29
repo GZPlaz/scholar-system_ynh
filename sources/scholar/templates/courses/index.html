@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Courses{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Courses</h1><p class="subtitle">{{ 'All courses' if current_user.is_admin else ('Courses you teach' if current_user.is_staff else 'Courses you are enrolled in') }}</p></div>
+  <div class="actions">
+    <a class="btn btn-sm" href="{{ url_for('courses.index', archived=0 if show_archived else 1) }}">{{ 'Hide' if show_archived else 'Show' }} archived</a>
+    {% if current_user.is_staff %}<a class="btn btn-primary" href="{{ url_for('courses.edit') }}">New course</a>{% endif %}
+  </div>
+</div>
+<div class="card table-wrap" style="padding:0">
+<table class="table">
+  <thead><tr><th>Code</th><th>Title</th><th>Term</th><th>Instructors</th><th class="num">Students</th><th class="num">Assessments</th></tr></thead>
+  <tbody>
+  {% for c in courses %}
+  <tr>
+    <td>{% if current_user.is_staff %}<a href="{{ url_for('courses.detail', course_id=c.id) }}"><strong>{{ c.code }}</strong></a>{% else %}<strong>{{ c.code }}</strong>{% endif %}{% if c.archived %} <span class="badge">Archived</span>{% endif %}</td>
+    <td>{{ c.title }}</td><td>{{ c.term }}</td>
+    <td class="small">{{ c.instructors|map(attribute='display_name')|join(', ') or '—' }}</td>
+    <td class="num">{{ c.enrollments|length }}</td>
+    <td class="num">{{ c.assessments|rejectattr('status', 'equalto', 'draft')|list|length if current_user.is_student else c.assessments|length }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6" class="empty">No courses to show.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}
