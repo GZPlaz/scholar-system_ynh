@@ -11,13 +11,13 @@ source /usr/share/yunohost/helpers
 #=================================================
 # RESTORE THE APP MAIN DIR
 #=================================================
-ynh_script_progress "Restoring the app main directory..."
+ynh_script_progression "Restoring the app main directory..."
 
 ynh_restore "$install_dir"
 
 # The archive may come from a server with another Python version: rebuild the venv if needed.
 if ! "$install_dir/venv/bin/python" -c "import flask, sqlalchemy, psycopg2" >/dev/null 2>&1; then
-    ynh_script_progress "Rebuilding the Python environment..."
+    ynh_script_progression "Rebuilding the Python environment..."
     _scholar_build_venv
 fi
 
@@ -26,14 +26,14 @@ _scholar_set_permissions
 #=================================================
 # RESTORE THE POSTGRESQL DATABASE
 #=================================================
-ynh_script_progress "Restoring the PostgreSQL database..."
+ynh_script_progression "Restoring the PostgreSQL database..."
 
 ynh_psql_db_shell < ./db.sql
 
 #=================================================
 # RESTORE SYSTEM CONFIGURATIONS
 #=================================================
-ynh_script_progress "Restoring system configurations related to $app..."
+ynh_script_progression "Restoring system configurations related to $app..."
 
 ynh_restore "/etc/nginx/conf.d/$domain.d/$app.conf"
 
@@ -51,7 +51,7 @@ ynh_systemctl --service=fail2ban --action=reload
 #=================================================
 # RELOAD NGINX AND THE APP SERVICE
 #=================================================
-ynh_script_progress "Reloading NGINX web server and $app's service..."
+ynh_script_progression "Reloading NGINX web server and $app's service..."
 
 ynh_systemctl --service="$app" --action="start" --log_path="/var/log/$app/$app.log" --wait_until="Booting worker"
 
@@ -61,4 +61,4 @@ ynh_systemctl --service=nginx --action=reload
 # END OF SCRIPT
 #=================================================
 
-ynh_script_progress "Restoration completed for $app"
+ynh_script_progression "Restoration completed for $app"

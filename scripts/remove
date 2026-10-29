@@ -11,7 +11,7 @@ source /usr/share/yunohost/helpers
 # REMOVE SYSTEM CONFIGURATIONS
 #=================================================
 # (install directory, database, system user, port and permissions are removed by the resources)
-ynh_script_progress "Removing system configurations related to $app..."
+ynh_script_progression "Removing system configurations related to $app..."
 
 if ynh_hide_warnings yunohost service status "$app" >/dev/null; then
     yunohost service remove "$app"
@@ -31,4 +31,4 @@ ynh_safe_rm "/var/log/$app"
 # END OF SCRIPT
 #=================================================
 
-ynh_script_progress "Removal of $app completed"
+ynh_script_progression "Removal of $app completed"
