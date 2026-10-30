@@ -11,8 +11,8 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from .config import build_config
 from .extensions import csrf, db, login_manager
 
-__version__ = "1.1.0"
-SCHEMA_VERSION = 2  # 2: answer_sheets, sheet_scans (created by create_all)
+__version__ = "1.2.0"
+SCHEMA_VERSION = 3  # 2: answer_sheets, sheet_scans; 3: api_tokens, users/courses.external_id
 
 
 class PrefixMiddleware:
@@ -55,9 +55,9 @@ def create_app(overrides=None):
         app.wsgi_app = PrefixMiddleware(app.wsgi_app, app.config["APP_PREFIX"])
 
     from . import auth
-    from .views import admin, assessments, courses, main, questions, reports, scans, standards, student
+    from .views import admin, api, assessments, courses, main, questions, reports, scans, standards, student
 
-    for module in (auth, main, admin, courses, standards, questions, assessments, scans, student, reports):
+    for module in (auth, main, admin, courses, standards, questions, assessments, scans, student, reports, api):
         app.register_blueprint(module.bp)
 
     app.before_request(auth.try_sso_login)
@@ -149,7 +149,9 @@ def upgrade_schema():
     db.create_all()
     row = db.session.get(Setting, "schema_version")
     current = int(row.value) if row and row.value.isdigit() else 0
-    # Future migrations go here:  if current < 2: ...
+    # New tables come from create_all(); new columns on existing tables are added here.
+    _add_missing_column("users", "external_id", "VARCHAR(120)")
+    _add_missing_column("courses", "external_id", "VARCHAR(120)")
     if current != SCHEMA_VERSION:
         if row is None:
             db.session.add(Setting(key="schema_version", value=str(SCHEMA_VERSION)))
@@ -157,6 +159,16 @@ def upgrade_schema():
             row.value = str(SCHEMA_VERSION)
     db.session.commit()
     return current
+
+
+def _add_missing_column(table, column, ddl_type):
+    """ALTER TABLE ... ADD COLUMN when an upgraded database lacks a column (SQLite and PostgreSQL)."""
+    inspector = db.inspect(db.engine)
+    if column in {c["name"] for c in inspector.get_columns(table)}:
+        return
+    with db.engine.begin() as conn:
+        conn.execute(db.text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl_type}"))
+        conn.execute(db.text(f"CREATE INDEX IF NOT EXISTS ix_{table}_{column} ON {table} ({column})"))
 
 
 def _register_cli(app):
@@ -207,6 +219,18 @@ def _register_cli(app):
         user.set_password(password)
         db.session.commit()
         click.echo(f"Local administrator '{username}' ready. Temporary password: {password}")
+
+    @app.cli.command("create-api-token")
+    @click.argument("name")
+    def create_api_token(name):
+        """Create an integration API token (printed once)."""
+        from .models import ApiToken
+        from .views.api import hash_token, new_token
+
+        secret, prefix = new_token()
+        db.session.add(ApiToken(name=name[:120], prefix=prefix, token_hash=hash_token(secret)))
+        db.session.commit()
+        click.echo(secret)
 
     @app.cli.command("seed-demo")
     def seed_demo():

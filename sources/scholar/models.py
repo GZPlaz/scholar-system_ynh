@@ -49,6 +49,8 @@ class User(UserMixin, db.Model):
     active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
     last_login_at = db.Column(db.DateTime)
+    # Identity in a connected system, e.g. "rosario:student:42" (set by the integration API)
+    external_id = db.Column(db.String(120), index=True)
 
     @property
     def is_active(self):
@@ -101,6 +103,8 @@ class Course(db.Model):
     description = db.Column(db.Text, nullable=False, default="")
     archived = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    # e.g. "rosario:cp:15" when the course is linked to a RosarioSIS course period
+    external_id = db.Column(db.String(120), index=True)
 
     instructors = db.relationship("User", secondary=course_instructors, backref="teaching_courses")
     enrollments = db.relationship("Enrollment", back_populates="course", cascade="all, delete-orphan")
@@ -469,3 +473,20 @@ class SheetScan(db.Model):
     @property
     def flag_count(self):
         return sum(1 for r in self.get_result().get("items", {}).values() if r.get("flag"))
+
+
+class ApiToken(db.Model):
+    """Bearer token for the integration API. Only a SHA-256 of the secret is stored."""
+
+    __tablename__ = "api_tokens"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    prefix = db.Column(db.String(16), nullable=False)  # first characters, to recognise a token
+    token_hash = db.Column(db.String(64), unique=True, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    created_by_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
+    last_used_at = db.Column(db.DateTime)
+    revoked = db.Column(db.Boolean, nullable=False, default=False)
+
+    created_by = db.relationship("User")

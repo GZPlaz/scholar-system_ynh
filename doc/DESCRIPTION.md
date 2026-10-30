@@ -9,4 +9,5 @@ Scholar System is a standards-based assessment platform for universities, in the
 - **Grading**: automatic scoring, a grading queue for essays (grade by student or by question), score overrides with feedback, and automatic re-scoring when an answer key is corrected.
 - **Reports**: score distribution, item analysis (difficulty, point-biserial, upper/lower discrimination, distractor analysis, Cronbach's α / KR-20), course gradebook, standards-mastery heat map, per-student reports and a student “My progress” page. Everything exports to CSV.
 - **Administration**: roles (administrator, instructor, student), CSV import of users and rosters, configurable mastery thresholds and time zone, and an audit log.
+- **RosarioSIS integration**: with the companion RosarioSIS plugin, course periods are created and kept in sync as Scholar courses, and test results are written into the RosarioSIS gradebook automatically.
 - **YunoHost integration**: YunoHost users sign in with their usual account (LDAP) or straight through the YunoHost portal (SSO); students without a YunoHost account can get local accounts. Failed logins are protected by fail2ban.

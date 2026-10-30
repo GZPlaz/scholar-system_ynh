@@ -15,6 +15,7 @@ Scholar System is a self-hosted testing platform in the spirit of Mastery Manage
 - **Grading** — automatic scoring, essay grading queue (by student or by question), overrides with feedback, automatic re-scoring when a key is corrected.
 - **Reports** — score distribution, item analysis (p-value, point-biserial, D-index, distractors, Cronbach's α / KR-20, SEM), gradebook, standards-mastery heat map, student reports, CSV exports everywhere.
 - **Administration** — roles, CSV user/roster import, mastery thresholds, time zone, audit log.
+- **RosarioSIS link** — with the [RosarioSIS Scholar plugin](https://github.com/GZPlaz/RosarioSIS-scholar-plugin), course periods become Scholar courses with their rosters, and test results land in the RosarioSIS gradebook by themselves. The plugin talks to a small token-protected JSON API (`/api/v1`).
 
 | Taking a test | Reviewing a marked paper | Standards mastery | Item analysis |
 |---|---|---|---|
@@ -35,6 +36,7 @@ The interface is modelled on the paperwork of the exam room: answer sheets print
 | Backup / restore | ✅ (PostgreSQL dump + install dir) |
 | Change URL | ✅ |
 | fail2ban | ✅ failed sign-ins are banned |
+| Integration API | ✅ `/api/v1`, bearer tokens; its own `api` permission lets server-to-server calls past the portal |
 | Stack | Python 3 (Flask, SQLAlchemy) · gunicorn · PostgreSQL · nginx |
 
 Requires YunoHost ≥ 12.0.9 (Debian 12, packaging v2, helpers 2.1).
@@ -58,7 +60,7 @@ See [doc/ADMIN.md](doc/ADMIN.md) for first steps, access-control choices and com
 ## Repository layout
 
 ```
-manifest.toml        YunoHost v2 manifest (resources: user, dir, port, apt, PostgreSQL, permission)
+manifest.toml        YunoHost v2 manifest (resources: user, dir, port, apt, PostgreSQL, permissions)
 conf/                nginx, systemd, gunicorn and app configuration templates
 scripts/             install / remove / upgrade / backup / restore / change_url
 sources/             the application itself (Flask package `scholar`, manage.py, wsgi.py)

@@ -258,3 +258,35 @@ def audit():
     page = max(1, parse_int(request.args.get("page"), 1))
     pagination = AuditLog.query.order_by(AuditLog.created_at.desc()).paginate(page=page, per_page=100, error_out=False)
     return render_template("admin/audit.html", pagination=pagination)
+
+
+@bp.route("/integrations", methods=["GET", "POST"])
+@admin_required
+def integrations():
+    from ..models import ApiToken
+    from .api import hash_token, new_token
+
+    new_secret = None
+    if request.method == "POST":
+        action = request.form.get("action")
+        if action == "create":
+            name = request.form.get("name", "").strip()[:120]
+            if not name:
+                flash("Give the token a name, for example “RosarioSIS”.", "error")
+            else:
+                secret, prefix = new_token()
+                db.session.add(ApiToken(name=name, prefix=prefix, token_hash=hash_token(secret), created_by_id=current_user.id))
+                log_event("api.token_created", name)
+                db.session.commit()
+                new_secret = secret
+        elif action == "revoke":
+            token = db.session.get(ApiToken, parse_int(request.form.get("token_id"), 0))
+            if token is not None and not token.revoked:
+                token.revoked = True
+                log_event("api.token_revoked", token.name)
+                db.session.commit()
+                flash(f"Token “{token.name}” revoked. Anything using it stops working immediately.", "success")
+            return redirect(url_for("admin.integrations"))
+    tokens = ApiToken.query.order_by(ApiToken.revoked, ApiToken.created_at.desc()).all()
+    api_url = url_for("api.ping", _external=True).rsplit("/ping", 1)[0]
+    return render_template("admin/integrations.html", tokens=tokens, new_secret=new_secret, api_url=api_url)

@@ -126,5 +126,6 @@ def force_password_change():
         and current_user.must_change_password
         and current_user.auth_source == "local"
         and request.endpoint not in ("main.account", "auth.logout", "static")
+        and not (request.endpoint or "").startswith("api.")
     ):
         return redirect(url_for("main.account"))

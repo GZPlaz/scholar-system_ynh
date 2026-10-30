@@ -2,5 +2,6 @@
   <a href="{{ url_for('admin.users') }}" class="{{ 'active' if request.endpoint in ('admin.users', 'admin.edit_user') }}">Users</a>
   <a href="{{ url_for('admin.import_users') }}" class="{{ 'active' if request.endpoint == 'admin.import_users' }}">Import users</a>
   <a href="{{ url_for('admin.settings') }}" class="{{ 'active' if request.endpoint == 'admin.settings' }}">Settings</a>
+  <a href="{{ url_for('admin.integrations') }}" class="{{ 'active' if request.endpoint == 'admin.integrations' }}">Integrations</a>
   <a href="{{ url_for('admin.audit') }}" class="{{ 'active' if request.endpoint == 'admin.audit' }}">Audit log</a>
 </nav>

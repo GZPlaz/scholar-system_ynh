@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% from "_macros.html" import post_button with context %}
+{% block title %}Integrations{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Integrations</h1>
+  <p class="facts"><span>Connect other systems, such as RosarioSIS, to Scholar through its API.</span></p></div></div>
+{% include "admin/_nav.html" %}
+{% if new_secret %}
+<div class="flash flash-success">
+  <p><strong>Copy this token now.</strong> It is shown only once; Scholar keeps only a fingerprint of it.</p>
+  <p class="mb0"><code style="font-size:1rem; user-select:all">{{ new_secret }}</code></p>
+</div>
+{% endif %}
+<div class="grid grid-2">
+  <section class="section">
+    <h2>Connection details</h2>
+    <table class="table kv">
+      <tr><th>API address</th><td><code style="user-select:all">{{ api_url }}</code></td></tr>
+      <tr><th>Authentication</th><td>Header <code>Authorization: Bearer &lt;token&gt;</code></td></tr>
+    </table>
+    <p class="small muted mt">In RosarioSIS: School, Configuration, Plugins, Scholar, then paste the address above (without <code>/api/v1</code>, or with it, both work) and a token.</p>
+  </section>
+  <section class="section">
+    <h2>Create a token</h2>
+    <form method="post" class="actions">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="create">
+      <input type="text" name="name" placeholder="RosarioSIS" maxlength="120" required aria-label="Token name" style="max-width:260px">
+      <button class="btn btn-primary" type="submit">Create token</button>
+    </form>
+    <p class="small muted mt">A token can create and update courses, set rosters (creating accounts) and read results. Treat it like an administrator password.</p>
+  </section>
+</div>
+<section class="section">
+  <h2>Tokens</h2>
+  <div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>Name</th><th>Starts with</th><th>Created</th><th>Last used</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for t in tokens %}
+    <tr>
+      <td><strong>{{ t.name }}</strong>{% if t.created_by %} <span class="small muted">by {{ t.created_by.username }}</span>{% endif %}</td>
+      <td><code>{{ t.prefix }}…</code></td>
+      <td class="small">{{ t.created_at|dt }}</td>
+      <td class="small">{{ t.last_used_at|dt if t.last_used_at else 'Never' }}</td>
+      <td>{% if t.revoked %}<span class="badge">Revoked</span>{% else %}<span class="badge badge-green">Active</span>{% endif %}</td>
+      <td class="right">{% if not t.revoked %}{{ post_button(url_for('admin.integrations'), 'Revoke', cls='btn btn-sm btn-danger', confirm='Revoke ' ~ t.name ~ '? Systems using it lose access at once.', fields={'action': 'revoke', 'token_id': t.id}) }}{% endif %}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="empty">No tokens yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endblock %}

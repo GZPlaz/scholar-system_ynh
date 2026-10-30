@@ -147,8 +147,8 @@ def try_sso_login():
     """Called before each request: log the user in from SSOwat headers if possible."""
     if current_user.is_authenticated or session.get("sso_suppressed"):
         return
-    if request.endpoint in ("static", "auth.logout"):
-        return
+    if request.endpoint in ("static", "auth.logout") or (request.endpoint or "").startswith("api."):
+        return  # the integration API authenticates with tokens, never with portal sessions
     username = sso_username()
     if not username:
         return
