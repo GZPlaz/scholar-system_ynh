@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "_macros.html" import assessment_tabs, post_button with context %}
+{% block title %}Proctor, {{ assessment.title }}{% endblock %}
+{% block content %}
+{{ assessment_tabs(assessment, 'monitor') }}
+<div class="proctor-head">
+  <div class="test-code">
+    <span class="label">Test code</span>
+    <b id="test-code">{{ assessment.display_code }}</b>
+    <span class="small muted">Students go to <strong>{{ url_for('portal.enter', _external=True) }}</strong> and enter this code and their student ID.</span>
+  </div>
+  <div class="actions">
+    {{ post_button(url_for('proctor.change_code', assessment_id=assessment.id), 'New code', confirm='Replace the test code? The old one stops working for new sign-ins.') }}
+    {% if tally['waiting'] %}{{ post_button(url_for('proctor.admit_all', assessment_id=assessment.id), 'Let in all ' ~ tally['waiting'] ~ ' waiting', cls='btn btn-sm btn-primary') }}{% endif %}
+    <a class="btn btn-sm" href="{{ url_for('assessments.settings', assessment_id=assessment.id) }}#security">Security settings</a>
+  </div>
+</div>
+<p class="facts small">
+  {% if assessment.window_state() != 'open' %}<span class="attn">The test is {{ assessment.window_state() }}: students can't start it now.</span>{% endif %}
+  <span>Identity: {{ 'name and PIN' if assessment.identity_check == 'pin' else 'name confirmation' }}</span>
+  {% if assessment.require_approval %}<span>You let each student in</span>{% endif %}
+  {% if assessment.lock_to_device %}<span>One device per student</span>{% endif %}
+  {% if assessment.require_fullscreen %}<span>Full screen</span>{% endif %}
+  {% if assessment.max_focus_losses %}<span>Paused after {{ assessment.max_focus_losses }} exits</span>{% endif %}
+  {% if assessment.network_list %}<span>School network only</span>{% endif %}
+</p>
+<div class="tally" id="monitor-tally" aria-live="polite">
+  {% for k in ('writing', 'waiting', 'paused', 'signed in', 'submitted', 'not started') %}
+  <div class="{{ 'attn' if k in ('waiting', 'paused') and tally[k] }}"><b data-key="{{ k }}">{{ tally[k] }}</b><span>{{ k }}</span></div>
+  {% endfor %}
+</div>
+<div class="table-wrap">
+<table class="table monitor" data-refresh-url="{{ url_for('proctor.monitor', assessment_id=assessment.id, fragment=1) }}">
+  <thead><tr><th>Student</th><th>State</th><th class="num" title="Questions answered while writing; score once submitted">Progress or score</th><th class="num">Time left</th><th class="num" title="Times the student left the test page or full screen">Left page</th><th class="num" title="Device changes / network changes">Device / network</th><th>Last seen</th><th></th></tr></thead>
+  {% include "assessments/_monitor_rows.html" %}
+</table>
+</div>
+<p class="small muted mt">This page updates itself every 5 seconds. Pausing a test hides it from the student; the timer keeps running, so add time if needed. Every action is recorded in the attempt's timeline and the audit log.</p>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/monitor.js') }}?v={{ app_version }}"></script>{% endblock %}

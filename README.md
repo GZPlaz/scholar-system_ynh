@@ -10,10 +10,13 @@ Scholar System is a self-hosted testing platform in the spirit of Mastery Manage
 
 - **Question bank** — multiple choice, multiple select, true/false, short answer, numeric and essay questions, aligned to standards / learning outcomes, shared between instructors, CSV import.
 - **Assessments** — availability windows, time limits, attempt limits, access codes, shuffling, results-release policy.
+- **Separate test portal for students** (`/test/`) — students have no account: they enter the test code and their student ID, confirm who they are (optionally with a personal PIN), and take the test. The staff site (`/courses`, …) is for instructors and administrators only.
 - **Online testing** — autosave, server-enforced timer with auto-submit, question navigator, flag for review.
+- **Test security, set per assessment** — rotating test codes, PIN identity check, proctor admission, one device per attempt, full-screen requirement, copy/paste/print blocking, a name watermark, pausing after the student leaves the test too often, network (IP range) allowlists and a late-start limit. A live **Proctor** page lets instructors admit, pause, resume, add time, force-submit and move students between devices; every event lands in the attempt's integrity timeline.
 - **Paper testing with phone scanning** — print a full-page answer sheet for each student (longer tests continue on more pages), then photograph the completed sheets with a phone. Scholar straightens each photo, identifies the student and page from the code printed on it, and reads the bubbles; clean sheets are recorded in one click and doubtful marks or handwritten answers are shown cropped for a quick check. Keyed entry (`A`, `AC`, `T`) and CSV import are still there.
 - **Grading** — automatic scoring, essay grading queue (by student or by question), overrides with feedback, automatic re-scoring when a key is corrected.
 - **Reports** — score distribution, item analysis (p-value, point-biserial, D-index, distractors, Cronbach's α / KR-20, SEM), gradebook, standards-mastery heat map, student reports, CSV exports everywhere.
+- **Per-test analytics** — percentiles and skew, reliability (α, split-half, SEM in plain words), a difficulty × discrimination map, questions to review, time-on-test and score-versus-time, mastery spread per standard, z-scores and percentile ranks, and integrity signals (leaving the page, device and network changes, rapid low-scoring finishes, pairs sharing unusually many identical wrong answers).
 - **Administration** — roles, CSV user/roster import, mastery thresholds, time zone, audit log.
 - **RosarioSIS link** — with the [RosarioSIS Scholar plugin](https://github.com/GZPlaz/RosarioSIS-scholar-plugin), course periods become Scholar courses with their rosters, and test results land in the RosarioSIS gradebook by themselves. The plugin talks to a small token-protected JSON API (`/api/v1`).
 
@@ -32,7 +35,8 @@ The interface is modelled on the paperwork of the exam room: answer sheets print
 | Multi-instance | ✅ |
 | LDAP (YunoHost accounts) | ✅ sign in with the YunoHost username/password |
 | SSO (SSOwat) | ✅ users signed into the portal are logged in automatically |
-| Local accounts | ✅ for students without a YunoHost account |
+| Local accounts | ✅ for staff without a YunoHost account |
+| Student test portal | ✅ `/test/`, always public (own permission); students need no account |
 | Backup / restore | ✅ (PostgreSQL dump + install dir) |
 | Change URL | ✅ |
 | fail2ban | ✅ failed sign-ins are banned |

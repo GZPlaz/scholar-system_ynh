@@ -1,0 +1,28 @@
+{% extends "portal/base.html" %}
+{% block title %}Results, {{ assessment.title }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{{ assessment.title }}</h1>
+    <p class="facts"><span>Attempt {{ attempt.number }}</span><span>Submitted {{ attempt.submitted_at|dt }}</span></p></div>
+</div>
+{% if not visible %}
+<section class="section">
+  <h2>Your answers were submitted</h2>
+  <p class="mb0">We received them{% if attempt.submitted_at %} on {{ attempt.submitted_at|dt }}{% endif %}. Results will be available {{ 'after the test closes' if assessment.show_results == 'after_close' else 'when your teacher releases them' }}: come back with the same test code and student ID to see them.</p>
+</section>
+{% else %}
+<div class="tally">
+  <div><b>{{ attempt.percent|pct }}</b><span>{{ attempt.score|num }} of {{ attempt.max_score|num }} points</span></div>
+  {% if attempt.needs_grading %}<div class="attn"><span>Some answers are still being graded; this score may go up.</span></div>{% endif %}
+</div>
+  {% if not assessment.show_correct_answers %}<p class="muted small">Your teacher has chosen not to show the correct answers for this test.</p>{% endif %}
+  {% with grading=False %}{% include "_attempt_items.html" %}{% endwith %}
+{% endif %}
+<div class="actions mt">
+  <a class="btn" href="{{ url_for('portal.lobby') }}">Back to the test</a>
+  <form method="post" action="{{ url_for('portal.leave') }}" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn-primary">Finish and sign out</button>
+  </form>
+</div>
+{% endblock %}

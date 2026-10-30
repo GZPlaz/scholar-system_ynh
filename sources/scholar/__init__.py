@@ -11,8 +11,10 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from .config import build_config
 from .extensions import csrf, db, login_manager
 
-__version__ = "1.2.0"
-SCHEMA_VERSION = 3  # 2: answer_sheets, sheet_scans; 3: api_tokens, users/courses.external_id
+__version__ = "1.3.0"
+# 2: answer_sheets, sheet_scans; 3: api_tokens, users/courses.external_id;
+# 4: test portal (test_sessions, attempt_events, portal_failures, PINs, security settings)
+SCHEMA_VERSION = 4
 
 
 class PrefixMiddleware:
@@ -55,12 +57,13 @@ def create_app(overrides=None):
         app.wsgi_app = PrefixMiddleware(app.wsgi_app, app.config["APP_PREFIX"])
 
     from . import auth
-    from .views import admin, api, assessments, courses, main, questions, reports, scans, standards, student
+    from .views import admin, api, assessments, courses, main, portal, proctor, questions, reports, scans, standards
 
-    for module in (auth, main, admin, courses, standards, questions, assessments, scans, student, reports, api):
+    for module in (auth, main, admin, courses, standards, questions, assessments, proctor, scans, reports, api, portal):
         app.register_blueprint(module.bp)
 
     app.before_request(auth.try_sso_login)
+    app.before_request(auth.keep_students_out)
     _register_template_helpers(app)
     _register_error_handlers(app)
     _register_cli(app)
@@ -70,8 +73,23 @@ def create_app(overrides=None):
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "same-origin")
         response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
-        if request.endpoint and request.endpoint.startswith("student."):
-            response.headers["Cache-Control"] = "no-store"
+        endpoint = request.endpoint or ""
+        if endpoint.startswith("portal.") or endpoint == "assessments.preview":
+            # The test portal: nothing cached, nothing framed, no third-party anything, no
+            # inline scripts, and the browser features a test never needs switched off.
+            response.headers["Cache-Control"] = "no-store, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["X-Frame-Options"] = "DENY"
+            response.headers["Referrer-Policy"] = "no-referrer"
+            response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+                "img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; "
+                "frame-ancestors 'none'; form-action 'self'; base-uri 'none'"
+            )
+            response.headers["Permissions-Policy"] = (
+                "camera=(), microphone=(), geolocation=(), payment=(), usb=(), display-capture=(), clipboard-read=()"
+            )
         return response
 
     return app
@@ -79,7 +97,7 @@ def create_app(overrides=None):
 
 def _register_template_helpers(app):
     from .analytics import LEVEL_LABELS, level_for
-    from .models import QTYPES, ROLES, SHOW_RESULTS
+    from .models import EVENT_ATTENTION, EVENT_LABELS, IDENTITY_CHECKS, QTYPES, ROLES, SHOW_RESULTS
     from .utils import can_manage_course, fmt_num, format_dt, get_setting, to_input_value
 
     @app.template_filter("dt")
@@ -118,6 +136,9 @@ def _register_template_helpers(app):
             "QTYPES": QTYPES,
             "ROLES": ROLES,
             "SHOW_RESULTS": SHOW_RESULTS,
+            "EVENT_LABELS": EVENT_LABELS,
+            "EVENT_ATTENTION": EVENT_ATTENTION,
+            "IDENTITY_CHECKS": IDENTITY_CHECKS,
             "LEVEL_LABELS": LEVEL_LABELS,
             "level_for": level_for,
             "can_manage_course": can_manage_course,
@@ -152,6 +173,11 @@ def upgrade_schema():
     # New tables come from create_all(); new columns on existing tables are added here.
     _add_missing_column("users", "external_id", "VARCHAR(120)")
     _add_missing_column("courses", "external_id", "VARCHAR(120)")
+    for table, column, ddl in SCHEMA_4_COLUMNS:
+        _add_missing_column(table, column, ddl, index=False)
+    if 0 < current < 4:
+        _migrate_to_portal()
+    _ensure_test_codes()
     if current != SCHEMA_VERSION:
         if row is None:
             db.session.add(Setting(key="schema_version", value=str(SCHEMA_VERSION)))
@@ -161,14 +187,71 @@ def upgrade_schema():
     return current
 
 
-def _add_missing_column(table, column, ddl_type):
+SCHEMA_4_COLUMNS = [
+    ("users", "pin_hash", "VARCHAR(256)"),
+    ("users", "pin_set_at", "TIMESTAMP"),
+    ("assessments", "identity_check", "VARCHAR(20) NOT NULL DEFAULT 'confirm'"),
+    ("assessments", "require_approval", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("assessments", "lock_to_device", "BOOLEAN NOT NULL DEFAULT TRUE"),
+    ("assessments", "require_fullscreen", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("assessments", "block_copy_paste", "BOOLEAN NOT NULL DEFAULT TRUE"),
+    ("assessments", "max_focus_losses", "INTEGER"),
+    ("assessments", "allowed_networks", "TEXT NOT NULL DEFAULT ''"),
+    ("assessments", "late_start_minutes", "INTEGER"),
+    ("assessments", "watermark", "BOOLEAN NOT NULL DEFAULT TRUE"),
+    ("attempts", "extra_minutes", "INTEGER NOT NULL DEFAULT 0"),
+    ("attempts", "locked", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("attempts", "lock_reason", "VARCHAR(200) NOT NULL DEFAULT ''"),
+    ("attempts", "focus_losses", "INTEGER NOT NULL DEFAULT 0"),
+    ("attempts", "ip", "VARCHAR(64) NOT NULL DEFAULT ''"),
+]
+
+
+def _add_missing_column(table, column, ddl_type, index=True):
     """ALTER TABLE ... ADD COLUMN when an upgraded database lacks a column (SQLite and PostgreSQL)."""
     inspector = db.inspect(db.engine)
     if column in {c["name"] for c in inspector.get_columns(table)}:
         return
     with db.engine.begin() as conn:
         conn.execute(db.text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl_type}"))
-        conn.execute(db.text(f"CREATE INDEX IF NOT EXISTS ix_{table}_{column} ON {table} ({column})"))
+        if index:
+            conn.execute(db.text(f"CREATE INDEX IF NOT EXISTS ix_{table}_{column} ON {table} ({column})"))
+
+
+def _migrate_to_portal():
+    """Version 4: students stop having accounts on the staff site; they use the test portal."""
+    from .models import Setting, User
+
+    for user in User.query.filter_by(role="student"):
+        user.password_hash = None
+        user.must_change_password = False
+        user.auth_source = "portal"
+    # Unknown YunoHost users used to become students. Students can no longer sign in, so stop
+    # creating accounts for them; administrators add instructors explicitly.
+    role = db.session.get(Setting, "ldap_default_role")
+    if role is None or role.value != "instructor":
+        for key, value in (("ldap_autoprovision", "0"), ("ldap_default_role", "instructor")):
+            setting = db.session.get(Setting, key)
+            if setting is None:
+                db.session.add(Setting(key=key, value=value))
+            else:
+                setting.value = value
+
+
+def _ensure_test_codes():
+    """Every assessment gets a unique test code; short or duplicated legacy access codes are replaced."""
+    from .models import Assessment
+    from .security import CUSTOM_CODE_MIN, generate_code, normalize_code
+
+    seen = set()
+    for assessment in Assessment.query.order_by(Assessment.id):
+        code = normalize_code(assessment.access_code)
+        if len(code) < CUSTOM_CODE_MIN or code in seen:
+            db.session.flush()
+            code = generate_code()
+        if code != assessment.access_code:
+            assessment.access_code = code
+        seen.add(code)
 
 
 def _register_cli(app):
@@ -238,4 +321,4 @@ def _register_cli(app):
         from .demo import seed
 
         seed()
-        click.echo("Demo data loaded. Demo student passwords: 'student123'.")
+        click.echo("Demo data loaded. Students take tests in the test portal (/test/) with the test code and their student ID.")

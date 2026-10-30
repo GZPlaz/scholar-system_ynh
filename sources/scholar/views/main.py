@@ -2,7 +2,6 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from ..extensions import db
-from ..grading import counted_attempts, enforce_deadlines
 from ..models import Assessment, Attempt, Course, Enrollment, course_instructors
 from ..utils import log_event
 
@@ -21,46 +20,10 @@ def visible_courses(user, include_archived=False):
     return query.order_by(Course.code).all()
 
 
-def student_assessment_rows(user, courses):
-    rows = []
-    for course in courses:
-        for assessment in course.assessments:
-            if assessment.status == "draft":
-                continue
-            attempts = [a for a in assessment.attempts if a.user_id == user.id]
-            enforce_deadlines(attempts)
-            in_progress = next((a for a in attempts if a.status == "in_progress"), None)
-            submitted = [a for a in attempts if a.status == "submitted"]
-            counted = counted_attempts(assessment).get(user.id)
-            remaining = None if assessment.max_attempts == 0 else max(0, assessment.max_attempts - len(attempts))
-            can_start = (
-                assessment.is_open() and in_progress is None and (remaining is None or remaining > 0) and len(assessment.items) > 0
-            )
-            rows.append(
-                {
-                    "assessment": assessment,
-                    "course": course,
-                    "state": assessment.window_state(),
-                    "in_progress": in_progress,
-                    "submitted": submitted,
-                    "counted": counted,
-                    "remaining": remaining,
-                    "can_start": can_start,
-                    "results_visible": assessment.results_visible(),
-                }
-            )
-    order = {"open": 0, "upcoming": 1, "closed": 2}
-    rows.sort(key=lambda r: (r["in_progress"] is None, order.get(r["state"], 3), r["assessment"].closes_at or r["assessment"].created_at))
-    return rows
-
-
 @bp.route("/")
 @login_required
 def dashboard():
     courses = visible_courses(current_user)
-    if current_user.is_student:
-        rows = student_assessment_rows(current_user, courses)
-        return render_template("dashboard_student.html", courses=courses, rows=rows)
 
     course_ids = [c.id for c in courses]
     assessments = (

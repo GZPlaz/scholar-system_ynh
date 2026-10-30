@@ -1,0 +1,45 @@
+{% extends "portal/base.html" %}
+{% block title %}{{ assessment.title }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>{{ assessment.title }}</h1><p class="facts"><span>{{ assessment.course.code }}: {{ assessment.course.title }}</span></p></div></div>
+{% if waiting %}
+<section class="section waiting" aria-live="polite">
+  <h2>Waiting for your proctor</h2>
+  <p>Your proctor lets each student in. Stay on this page: it moves on by itself as soon as you are let in.</p>
+  <p class="small muted">This page checks again every few seconds.</p>
+</section>
+{% else %}
+{% if assessment.instructions %}<div class="instructions">{{ assessment.instructions|richtext }}</div>{% endif %}
+<table class="table kv">
+  <tr><th>Questions</th><td>{{ assessment.items|length }}, worth {{ assessment.max_score|num }} points in total</td></tr>
+  <tr><th>Time limit</th><td>{{ (assessment.time_limit_minutes ~ ' minutes. The timer starts when you begin and does not pause.') if assessment.time_limit_minutes else 'None' }}</td></tr>
+  {% if assessment.closes_at %}<tr><th>Closes</th><td>{{ assessment.closes_at|dt }}</td></tr>{% endif %}
+  <tr><th>Attempts</th><td>{{ attempts|length }} used{% if assessment.max_attempts %} of {{ assessment.max_attempts }}{% else %}, no limit{% endif %}</td></tr>
+</table>
+{% set rules = [] %}
+{% if assessment.require_fullscreen %}{% set _ = rules.append('The test runs in full screen. Leaving full screen hides the questions and is recorded.') %}{% endif %}
+{% if assessment.max_focus_losses %}{% set _ = rules.append('Leaving the test page (another tab, window or app) is recorded. After ' ~ assessment.max_focus_losses ~ ' time' ~ ('s' if assessment.max_focus_losses != 1 else '') ~ ', your test is paused until your proctor lets you continue.') %}{% else %}{% set _ = rules.append('Leaving the test page (another tab, window or app) is recorded for your teacher.') %}{% endif %}
+{% if assessment.block_copy_paste %}{% set _ = rules.append('Copying, pasting and printing are switched off.') %}{% endif %}
+{% if assessment.lock_to_device %}{% set _ = rules.append('Once you begin, the test stays on this device. Only your proctor can move it to another one.') %}{% endif %}
+<section class="section">
+  <h2>Before you begin</h2>
+  <ul class="rules">{% for r in rules %}<li>{{ r }}</li>{% endfor %}<li>Your answers save automatically while you work.</li></ul>
+</section>
+<div class="mt">
+{% if in_progress %}
+  <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-primary" type="submit">Resume your test</button></form>
+{% elif problem %}
+  <div class="flash flash-info">{{ problem }}</div>
+{% else %}
+  <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-primary" type="submit">Begin {{ 'attempt ' ~ (attempts|length + 1) if attempts else 'the test' }}</button></form>
+{% endif %}
+</div>
+{% set done = attempts|selectattr('status', 'equalto', 'submitted')|list %}
+{% if done %}
+<section class="section mt">
+  <h2>Your submitted attempts</h2>
+  <ul>{% for a in done %}<li><a href="{{ url_for('portal.review', attempt_id=a.id) }}">Attempt {{ a.number }}</a>, submitted {{ a.submitted_at|dt }}{% if assessment.results_visible() %}: {{ a.percent|pct }}{% endif %}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+{% endif %}
+{% endblock %}

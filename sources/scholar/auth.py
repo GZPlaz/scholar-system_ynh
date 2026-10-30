@@ -7,7 +7,7 @@ from flask import Blueprint, current_app, flash, redirect, render_template, requ
 from flask_login import current_user, login_required, login_user, logout_user
 
 from .extensions import db, login_manager
-from .models import ROLES, User, utcnow
+from .models import User, utcnow
 from .utils import get_setting, log_event, parse_bool
 
 bp = Blueprint("auth", __name__)
@@ -104,13 +104,12 @@ def provision_directory_user(username, info):
     user = User.query.filter(db.func.lower(User.username) == username.lower()).first()
     admin_name = (current_app.config.get("ADMIN_USERNAME") or "").lower()
     if user is None:
-        if not parse_bool(get_setting("ldap_autoprovision")) and username.lower() != admin_name:
+        # Unknown YunoHost users only get an account if the administrator allowed it, and then as
+        # instructors: students never have accounts on the staff site.
+        autoprovision = parse_bool(get_setting("ldap_autoprovision")) and get_setting("ldap_default_role") == "instructor"
+        if not autoprovision and username.lower() != admin_name:
             return None
-        role = get_setting("ldap_default_role") or "student"
-        if role not in ROLES:
-            role = "student"
-        if username.lower() == admin_name:
-            role = "admin"
+        role = "admin" if username.lower() == admin_name else "instructor"
         user = User(username=username, role=role, auth_source="ldap", active=True)
         db.session.add(user)
         db.session.flush()
@@ -147,16 +146,31 @@ def try_sso_login():
     """Called before each request: log the user in from SSOwat headers if possible."""
     if current_user.is_authenticated or session.get("sso_suppressed"):
         return
-    if request.endpoint in ("static", "auth.logout") or (request.endpoint or "").startswith("api."):
-        return  # the integration API authenticates with tokens, never with portal sessions
+    endpoint = request.endpoint or ""
+    if endpoint in ("static", "auth.logout") or endpoint.startswith(("api.", "portal.")):
+        # the integration API uses tokens and the test portal its own sessions, never portal logins
+        return
     username = sso_username()
     if not username:
         return
     user = provision_directory_user(username, ldap_lookup(username))
-    if user is None or not user.active:
+    if user is None or not user.can_sign_in:
         db.session.rollback()
         return
     _finish_login(user, "sso")
+
+
+def keep_students_out():
+    """Students (and deactivated users) can't hold a staff-site session, even one from before an upgrade."""
+    if not current_user.is_authenticated or current_user.can_sign_in:
+        return None
+    endpoint = request.endpoint or ""
+    if endpoint == "static" or endpoint.startswith(("api.", "portal.")):
+        return None
+    logout_user()
+    session.clear()
+    session["sso_suppressed"] = True
+    return redirect(url_for("portal.enter"))
 
 
 # --------------------------------------------------------------------------- views
@@ -189,6 +203,10 @@ def login():
                     flash("Your YunoHost account is not registered in Scholar. Ask an administrator.", "error")
                     db.session.rollback()
                     return render_template("auth/login.html", next=next_url), 403
+        if authenticated is not None and authenticated.active and authenticated.is_student:
+            db.session.rollback()
+            log.info("Student %s was sent to the test portal", authenticated.username)
+            return render_template("auth/login.html", next=next_url, student_redirect=True), 403
         if authenticated is not None and not authenticated.active:
             authenticated = None
         if authenticated is None:

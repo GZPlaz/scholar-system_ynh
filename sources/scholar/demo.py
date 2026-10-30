@@ -4,6 +4,7 @@ import random
 from .extensions import db
 from .grading import finalize_attempt, save_answer, start_attempt
 from .models import Assessment, AssessmentItem, Choice, Course, Enrollment, Question, Standard, User
+from .security import generate_code
 
 STANDARDS = [
     ("MATH.ALG.1", "Solve linear equations in one variable", "Algebra"),
@@ -51,8 +52,8 @@ def seed():
         username = f"demo.student{idx}"
         user = User.query.filter_by(username=username).first()
         if user is None:
-            user = User(username=username, full_name=name, role="student", student_number=f"MA2026{idx:03d}")
-            user.set_password("student123")
+            # test takers: no password; they use the test portal with their student ID
+            user = User(username=username, full_name=name, role="student", auth_source="portal", student_number=f"MA2026{idx:03d}")
             db.session.add(user)
         students.append(user)
         db.session.flush()
@@ -88,6 +89,7 @@ def seed():
         max_attempts=2,
         show_results="immediately",
         show_correct_answers=True,
+        access_code=generate_code(),
     )
     for pos, q in enumerate(questions, start=1):
         assessment.items.append(AssessmentItem(question=q, position=pos))

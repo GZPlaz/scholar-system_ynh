@@ -4,7 +4,7 @@ import sqlite3
 
 from test_app import app, login  # noqa: F401  (fixture re-export; puts sources/ on sys.path)
 
-from scholar import create_app, upgrade_schema
+from scholar import SCHEMA_VERSION, create_app, upgrade_schema
 from scholar.extensions import db
 from scholar.models import ApiToken, Assessment, Course, User
 from scholar.views.api import hash_token, new_token
@@ -81,7 +81,12 @@ def test_roster_sync_creates_enrolls_unenrolls_and_promotes(app):
     assert r.status_code == 200, r.json
     assert sorted(r.json["enrolled"]) == ["ann", "bob", "demo.student1"]
     created = {x["username"]: x for x in r.json["created"]}
-    assert set(created) == {"teacher", "ann", "bob"} and all(x["temporary_password"] for x in created.values())
+    assert set(created) == {"teacher", "ann", "bob"}
+    # only staff get a password; students are test takers who use the test portal
+    assert created["teacher"]["temporary_password"] and created["ann"]["temporary_password"] is None
+    with app.app_context():
+        ann = User.query.filter_by(username="ann").one()
+        assert ann.password_hash is None and ann.auth_source == "portal" and ann.student_number == "1"
     with app.app_context():
         assert User.query.filter_by(username="demo.student1").one().external_id == "rosario:student:3"
         teacher = User.query.filter_by(username="teacher").one()
@@ -177,4 +182,4 @@ def test_upgrade_adds_external_id_columns(tmp_path):
         user = db.session.get(User, 1)
         user.external_id = "rosario:staff:1"
         db.session.commit()
-        assert upgrade_schema() == 3  # idempotent
+        assert upgrade_schema() == SCHEMA_VERSION  # idempotent

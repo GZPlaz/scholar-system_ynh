@@ -25,9 +25,29 @@
       <div class="form-row">
         <div class="field"><label for="tl">Time limit (minutes)</label><input type="number" id="tl" name="time_limit_minutes" min="1" value="{{ val('time_limit_minutes', a.time_limit_minutes or '' if a else '') }}" placeholder="No limit"></div>
         <div class="field"><label for="ma">Attempts allowed</label><input type="number" id="ma" name="max_attempts" min="0" value="{{ val('max_attempts', a.max_attempts if a else 1) }}"><div class="help">0 = unlimited.</div></div>
-        <div class="field"><label for="ac">Access code</label><input type="text" id="ac" name="access_code" value="{{ val('access_code', a.access_code if a else '') }}" maxlength="60" placeholder="Optional"><div class="help">Proctor gives the code in the room.</div></div>
+        <div class="field"><label for="ls">Late start limit (minutes)</label><input type="number" id="ls" name="late_start_minutes" min="1" value="{{ val('late_start_minutes', a.late_start_minutes or '' if a else '') }}" placeholder="None"><div class="help">No new starts this long after the opening time.</div></div>
       </div>
-      <label class="check"><input type="checkbox" name="allow_online" value="1" {{ checked('allow_online', a.allow_online if a else True) }}> Students can take this assessment online (uncheck for paper-only tests)</label>
+      <label class="check"><input type="checkbox" name="allow_online" value="1" {{ checked('allow_online', a.allow_online if a else True) }}> Students can take this assessment online in the test portal (uncheck for paper-only tests)</label>
+    </div>
+    <div class="section" id="security">
+      <h3>Test-taking security</h3>
+      <div class="form-row">
+        <div class="field"><label for="ac">Test code</label><input type="text" id="ac" name="access_code" class="code-input" value="{{ val('access_code', a.display_code if a else '') }}" maxlength="40" placeholder="Made for you"><div class="help">Students type it in the test portal with their student ID. Leave empty for a random code; at least 6 letters or digits.</div></div>
+      </div>
+      {% set ic = val('identity_check', a.identity_check if a else 'confirm') %}
+      <fieldset class="field"><legend>How students prove who they are</legend>
+        <label class="check"><input type="radio" name="identity_check" value="confirm" {{ 'checked' if ic == 'confirm' }}> They confirm the name shown for their student ID</label>
+        <label class="check"><input type="radio" name="identity_check" value="pin" {{ 'checked' if ic == 'pin' }}> They also type their personal PIN <span class="small muted">(strongest: give out PINs from the course roster)</span></label>
+      </fieldset>
+      <label class="check"><input type="checkbox" name="require_approval" value="1" {{ checked('require_approval', a.require_approval if a else False) }}> A proctor lets each student in from the Proctor page</label>
+      <label class="check"><input type="checkbox" name="lock_to_device" value="1" {{ checked('lock_to_device', a.lock_to_device if a else True) }}> Keep each test on one device: moving to another needs a proctor</label>
+      <label class="check"><input type="checkbox" name="require_fullscreen" value="1" {{ checked('require_fullscreen', a.require_fullscreen if a else False) }}> Require full screen (questions are hidden outside full screen)</label>
+      <label class="check"><input type="checkbox" name="block_copy_paste" value="1" {{ checked('block_copy_paste', a.block_copy_paste if a else True) }}> Switch off copying, pasting, the context menu and printing</label>
+      <label class="check"><input type="checkbox" name="watermark" value="1" {{ checked('watermark', a.watermark if a else True) }}> Show the student's name and ID faintly across the test</label>
+      <div class="form-row mt">
+        <div class="field"><label for="mfl">Pause the test after leaving it</label><input type="number" id="mfl" name="max_focus_losses" min="1" max="50" value="{{ val('max_focus_losses', a.max_focus_losses or '' if a else '') }}" placeholder="Never"><div class="help">Times a student may switch tab, window or app (or leave full screen) before a proctor must let them continue. Every exit is recorded either way.</div></div>
+        <div class="field"><label for="nets">Allowed networks</label><textarea id="nets" name="allowed_networks" rows="3" placeholder="Anywhere" class="code-input" style="text-transform:none">{{ val('allowed_networks', a.allowed_networks if a else '') }}</textarea><div class="help">One IP address or range per line, e.g. 203.0.113.0/24, to allow the test only from school.</div></div>
+      </div>
     </div>
   </div>
   <div>

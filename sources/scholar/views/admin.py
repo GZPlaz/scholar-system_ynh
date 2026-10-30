@@ -66,8 +66,10 @@ def edit_user(user_id=None):
         username = form.get("username", "").strip()
         role = form.get("role", "student")
         auth_source = form.get("auth_source", "local")
-        if role not in ROLES or auth_source not in ("local", "ldap"):
+        if role not in ROLES or (role != "student" and auth_source not in ("local", "ldap")):
             abort(400)
+        if role == "student":
+            auth_source = "portal"  # test takers: no password, no staff-site sign-in
         if user is None:
             if not _valid_username(username):
                 flash("Usernames may contain letters, digits and . _ - @ only.", "error")
@@ -87,7 +89,10 @@ def edit_user(user_id=None):
         user.auth_source = auth_source
         user.active = parse_bool(form.get("active", ""))
         password = form.get("password", "")
-        if auth_source == "local":
+        if role == "student":
+            user.password_hash = None
+            user.must_change_password = False
+        elif auth_source == "local":
             if password:
                 if len(password) < 8:
                     db.session.rollback()
@@ -113,7 +118,7 @@ def edit_user(user_id=None):
 @admin_required
 def reset_password(user_id):
     user = db.session.get(User, user_id) or abort(404)
-    if user.auth_source != "local":
+    if user.auth_source != "local" or user.is_student:
         flash("This account authenticates through YunoHost; reset its password there.", "error")
         return redirect(url_for("admin.users"))
     password = secrets.token_urlsafe(9)
@@ -167,6 +172,8 @@ def import_users():
                 continue
             source = (row.get("auth") or row.get("auth_source") or "local").lower()
             source = "ldap" if source in ("ldap", "yunohost", "sso") else "local"
+            if role == "student":
+                source = "portal"  # students never get a password
             user = _find_user(username)
             if user is None:
                 user = User(username=username, role=role, auth_source=source)
@@ -221,15 +228,12 @@ def settings():
         tz = form.get("timezone", "UTC")
         if tz not in zones:
             tz = "UTC"
-        default_role = form.get("ldap_default_role", "student")
-        if default_role not in ("student", "instructor"):
-            default_role = "student"
         set_setting("institution_name", form.get("institution_name", "").strip() or "MindAccel University")
         set_setting("timezone", tz)
         set_setting("mastery_threshold", f"{mastery:g}")
         set_setting("approaching_threshold", f"{approaching:g}")
         set_setting("ldap_autoprovision", "1" if parse_bool(form.get("ldap_autoprovision", "")) else "0")
-        set_setting("ldap_default_role", default_role)
+        set_setting("ldap_default_role", "instructor")
         set_setting("attempt_policy", "latest" if form.get("attempt_policy") == "latest" else "best")
         set_setting("login_message", form.get("login_message", "").strip()[:1000])
         log_event("settings.saved")

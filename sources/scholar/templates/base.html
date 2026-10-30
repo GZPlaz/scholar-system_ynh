@@ -22,8 +22,6 @@
       {% if current_user.is_staff %}
       <a href="{{ url_for('questions.index') }}" class="{{ 'active' if ep.startswith('questions.') }}">Question bank</a>
       <a href="{{ url_for('standards.index') }}" class="{{ 'active' if ep.startswith('standards.') }}">Standards</a>
-      {% else %}
-      <a href="{{ url_for('student.my_progress') }}" class="{{ 'active' if ep == 'student.my_progress' }}">My progress</a>
       {% endif %}
       {% if current_user.is_admin %}
       <a href="{{ url_for('admin.users') }}" class="{{ 'active' if ep.startswith('admin.') }}">Administration</a>

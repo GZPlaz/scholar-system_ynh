@@ -1,0 +1,69 @@
+{# Inline SVG charts. Marks are graphite on paper (the pencil mark is what counts on the sheet);
+   form structure (axes, guides) is dropout green, as everywhere else. Every mark has a hover
+   tip (<title>) and every chart sits next to a table with the same numbers. #}
+
+{% macro bars(values, labels, title, tips=None, markers=[], height=190) -%}
+{% set W, H, L, R, T, B = 640, height, 34, 8, 26, 30 %}
+{% set n = values|length %}
+{% set vmax = [values|max if values else 0, 1]|max %}
+{% set half = (vmax / 2)|round(0, 'ceil')|int %}
+{% set pw, ph = W - L - R, H - T - B %}
+{% set bw = pw / n %}
+<svg class="chart" viewBox="0 0 {{ W }} {{ H }}" role="img" aria-label="{{ title }}">
+  {% for v in ([0, half, vmax] if half < vmax else [0, vmax]) %}{% set y = T + ph * (1 - v / vmax) %}
+  <line class="grid" x1="{{ L }}" x2="{{ W - R }}" y1="{{ y }}" y2="{{ y }}"/>
+  <text class="tick" x="{{ L - 6 }}" y="{{ y + 4 }}" text-anchor="end">{{ v }}</text>{% endfor %}
+  {% for v in values %}{% set h = ph * v / vmax %}{% set x = L + loop.index0 * bw %}
+  <g class="mark"><title>{{ tips[loop.index0] if tips else labels[loop.index0] ~ ': ' ~ v }}</title>
+    <rect class="hit" x="{{ x }}" y="{{ T }}" width="{{ bw }}" height="{{ ph }}"/>
+    {% if v %}<rect class="bar" x="{{ x + 1 }}" y="{{ T + ph - h }}" width="{{ [bw - 2, 1]|max }}" height="{{ h }}"/>{% endif %}
+  </g>
+  <text class="tick" x="{{ x + bw / 2 }}" y="{{ H - B + 16 }}" text-anchor="middle">{{ labels[loop.index0] }}</text>{% endfor %}
+  {% for m in markers %}{% set x = L + pw * m.at %}
+  <line class="guide" x1="{{ x }}" x2="{{ x }}" y1="{{ T - 14 }}" y2="{{ T + ph }}"/>
+  <text class="guide-label" x="{{ x + 4 }}" y="{{ T - 6 }}">{{ m.label }}</text>{% endfor %}
+  <line class="axis" x1="{{ L }}" x2="{{ W - R }}" y1="{{ T + ph }}" y2="{{ T + ph }}"/>
+</svg>
+{%- endmacro %}
+
+{% macro scatter(points, title, xlabel, ylabel, xmin, xmax, ymin, ymax, guides_x=[], guides_y=[], xfmt='%.0f', yfmt='%.0f', label_flagged=True, height=300) -%}
+{% set W, H, L, R, T, B = 640, height, 44, 14, 14, 40 %}
+{% set pw, ph = W - L - R, H - T - B %}
+{% set xr = (xmax - xmin) if xmax > xmin else 1 %}{% set yr = (ymax - ymin) if ymax > ymin else 1 %}
+<svg class="chart" viewBox="0 0 {{ W }} {{ H }}" role="img" aria-label="{{ title }}">
+  {% for i in range(5) %}{% set fy = i / 4 %}{% set y = T + ph * (1 - fy) %}
+  <line class="grid" x1="{{ L }}" x2="{{ W - R }}" y1="{{ y }}" y2="{{ y }}"/>
+  <text class="tick" x="{{ L - 6 }}" y="{{ y + 4 }}" text-anchor="end">{{ yfmt|format(ymin + yr * fy) }}</text>
+  {% set x = L + pw * fy %}<text class="tick" x="{{ x }}" y="{{ T + ph + 16 }}" text-anchor="middle">{{ xfmt|format(xmin + xr * fy) }}</text>{% endfor %}
+  {% for g in guides_x %}{% set x = L + pw * (g.at - xmin) / xr %}<line class="guide" x1="{{ x }}" x2="{{ x }}" y1="{{ T }}" y2="{{ T + ph }}"/><text class="guide-label" x="{{ x + 4 }}" y="{{ T + 10 }}">{{ g.label }}</text>{% endfor %}
+  {% for g in guides_y %}{% set y = T + ph * (1 - (g.at - ymin) / yr) %}<line class="guide" x1="{{ L }}" x2="{{ W - R }}" y1="{{ y }}" y2="{{ y }}"/><text class="guide-label" x="{{ L + 4 }}" y="{{ y - 4 }}">{{ g.label }}</text>{% endfor %}
+  <line class="axis" x1="{{ L }}" x2="{{ W - R }}" y1="{{ T + ph }}" y2="{{ T + ph }}"/>
+  <line class="axis" x1="{{ L }}" x2="{{ L }}" y1="{{ T }}" y2="{{ T + ph }}"/>
+  <text class="axis-label" x="{{ L + pw / 2 }}" y="{{ H - 6 }}" text-anchor="middle">{{ xlabel }}</text>
+  <text class="axis-label" x="12" y="{{ T + ph / 2 }}" text-anchor="middle" transform="rotate(-90 12 {{ T + ph / 2 }})">{{ ylabel }}</text>
+  {% for p in points %}{% set cx = L + pw * ([[p.x, xmax]|min, xmin]|max - xmin) / xr %}{% set cy = T + ph * (1 - ([[p.y, ymax]|min, ymin]|max - ymin) / yr) %}
+  <g class="mark{{ ' flagged' if p.flagged }}"><title>{{ p.tip }}</title>
+    <circle class="hit" cx="{{ cx }}" cy="{{ cy }}" r="12"/>
+    <circle class="dot" cx="{{ cx }}" cy="{{ cy }}" r="5"/>
+    {% if p.flagged and label_flagged %}<text class="dot-label" x="{{ cx + 8 }}" y="{{ cy - 7 }}">{{ p.label }}</text>{% endif %}
+  </g>{% endfor %}
+</svg>
+{%- endmacro %}
+
+{# Mastery spread per standard: one 100% bar per row, segments mastered / approaching / not yet. #}
+{% macro mastery_rows(rows) -%}
+<div class="chart-legend" aria-hidden="true"><span class="key k-mastered"></span>Mastered <span class="key k-approaching"></span>Approaching <span class="key k-not-yet"></span>Not yet</div>
+<div class="mastery-bars">
+{% for r in rows %}{% set total = r.n or 0 %}
+  <div class="mrow">
+    <span class="code">{{ r.standard.code }}</span>
+    <div class="mbar" role="img" aria-label="{{ r.standard.code }}: {{ r.dist['mastered'] }} mastered, {{ r.dist['approaching'] }} approaching, {{ r.dist['not-yet'] }} not yet">
+      {% for k in ('mastered', 'approaching', 'not-yet') %}{% set c = r.dist[k] %}{% if c %}
+      <span class="seg s-{{ k }}" style="flex-grow: {{ c }}" title="{{ LEVEL_LABELS[k] }}: {{ c }} of {{ total }}">{{ c }}</span>{% endif %}{% endfor %}
+      {% if not total %}<span class="seg s-none">No results</span>{% endif %}
+    </div>
+    <span class="num">{{ r.mean|pct(0) }}</span>
+  </div>
+{% endfor %}
+</div>
+{%- endmacro %}

@@ -6,13 +6,18 @@
 <div class="layout-side">
   <div class="table-wrap">
     <table class="table">
-      <thead><tr><th>Student</th><th>Username</th><th>Student ID</th><th>Email</th><th></th></tr></thead>
+      <thead><tr><th>Student</th><th>Student ID</th><th>PIN</th><th>Email</th><th></th></tr></thead>
       <tbody>
       {% for s in course.students %}
       <tr>
         <td><a href="{{ url_for('reports.student', course_id=course.id, user_id=s.id) }}">{{ s.display_name }}</a>{% if not s.active %} <span class="badge badge-red">Inactive</span>{% endif %}</td>
-        <td>{{ s.username }}</td><td>{{ s.student_number }}</td><td class="small">{{ s.email }}</td>
-        <td class="right">{{ post_button(url_for('courses.roster', course_id=course.id), 'Remove', cls='btn btn-sm btn-danger', confirm='Remove ' ~ s.display_name ~ ' from ' ~ course.code ~ '?', fields={'action': 'remove', 'user_id': s.id}) }}</td>
+        <td>{% if s.student_number %}{{ s.student_number }}{% else %}<span class="badge badge-red">Missing: can't take tests online</span>{% endif %}</td>
+        <td class="small">{% if s.pin_hash %}Set {{ s.pin_set_at|dt('%b %d, %Y') if s.pin_set_at }}{% else %}<span class="muted">None</span>{% endif %}</td>
+        <td class="small">{{ s.email }}</td>
+        <td class="right"><div class="actions row-actions">
+          {{ post_button(url_for('courses.pins', course_id=course.id), 'New PIN', confirm='Give ' ~ s.display_name ~ ' a new PIN? Their old PIN stops working in every course.', fields={'scope': 'one', 'user_id': s.id}) }}
+          {{ post_button(url_for('courses.roster', course_id=course.id), 'Remove', cls='btn btn-sm btn-danger', confirm='Remove ' ~ s.display_name ~ ' from ' ~ course.code ~ '?', fields={'action': 'remove', 'user_id': s.id}) }}
+        </div></td>
       </tr>
       {% else %}
       <tr><td colspan="5" class="empty">No students enrolled yet.</td></tr>
@@ -22,7 +27,25 @@
   </div>
   <div>
     <div class="section">
-      <h3>Enroll students</h3>
+      <h3>Add a student</h3>
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="new_student">
+        <div class="field"><label for="full_name">Name</label><input type="text" id="full_name" name="full_name" maxlength="200" required></div>
+        <div class="field"><label for="student_number">Student ID</label><input type="text" id="student_number" name="student_number" maxlength="64" required><div class="help">Students type this ID in the test portal. They don't get an account or a password.</div></div>
+        <button class="btn btn-primary btn-sm" type="submit">Add to {{ course.code }}</button>
+      </form>
+    </div>
+    <div class="section">
+      <h3>Test-portal PINs</h3>
+      <p class="small">Assessments can ask for a personal PIN as well as the student ID. PINs are stored scrambled, so they are shown only once, on a page of slips to print and hand out.</p>
+      <div class="actions">
+        {{ post_button(url_for('courses.pins', course_id=course.id), 'PINs for students without one', cls='btn btn-sm btn-primary', fields={'scope': 'missing'}) }}
+        {{ post_button(url_for('courses.pins', course_id=course.id), 'New PINs for everyone', confirm='Give every student in ' ~ course.code ~ ' a new PIN? Their old PINs stop working in every course.', fields={'scope': 'all'}) }}
+      </div>
+    </div>
+    <div class="section">
+      <h3>Enroll existing students</h3>
       <form method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="add">
@@ -36,7 +59,7 @@
       <form method="post" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="import">
-        <div class="field"><input type="file" name="file" accept=".csv,text/csv"><div class="help">A column named <code>username</code> or <code>student_id</code>.</div></div>
+        <div class="field"><input type="file" name="file" accept=".csv,text/csv"><div class="help">Columns <code>student_id</code> and <code>name</code> (or <code>username</code>). Students who don't exist yet are created when the row has a name.</div></div>
         <button class="btn btn-sm" type="submit">Import</button>
       </form>
     </div>

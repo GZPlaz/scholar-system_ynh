@@ -221,15 +221,12 @@ def _upsert_user(person, role, account_type, created, conflicts):
             )
             return None
     if user is None:
-        user = User(username=person["username"], role=role, auth_source=account_type, active=True)
-        temporary = None
-        if account_type == "local":
-            temporary = secrets.token_urlsafe(9)
-            user.set_password(temporary)
-            user.must_change_password = True
+        # Students are test takers with no password (they use the test portal); account_type
+        # decides how instructors sign in to the staff site.
+        user = User(username=person["username"], role=role, auth_source="portal" if role == "student" else account_type, active=True)
         db.session.add(user)
         db.session.flush()  # assign an id now: callers key users by id
-        created.append({"username": user.username, "role": role, "temporary_password": temporary})
+        created.append({"username": user.username, "role": role, "temporary_password": _staff_password(user)})
     if person["external_id"]:
         user.external_id = person["external_id"]
     for field in ("full_name", "email", "student_number"):
@@ -237,8 +234,22 @@ def _upsert_user(person, role, account_type, created, conflicts):
             setattr(user, field, person[field])
     if role == "instructor" and user.role == "student":
         user.role = "instructor"  # promote, never demote
+        user.auth_source = account_type
+        temporary = _staff_password(user)
+        if temporary:
+            created.append({"username": user.username, "role": role, "temporary_password": temporary})
     user.active = True
     return user
+
+
+def _staff_password(user):
+    """A temporary password for a new local staff account, or None."""
+    if user.role == "student" or user.auth_source != "local" or user.password_hash:
+        return None
+    temporary = secrets.token_urlsafe(9)
+    user.set_password(temporary)
+    user.must_change_password = True
+    return temporary
 
 
 @bp.route("/courses/<int:course_id>/roster", methods=["PUT"])

@@ -1,0 +1,25 @@
+{% extends "portal/base.html" %}
+{% block title %}Start a test{% endblock %}
+{% block content %}
+<div class="signin">
+  <p class="institution">{{ institution_name }}</p>
+  <h1>Take a test</h1>
+  <p class="muted">Your proctor or teacher gives you the test code. Your student ID is the number on your student card.</p>
+  {% if error %}<div class="flash flash-error" role="alert">{{ error }}</div>{% endif %}
+  <form method="post" action="{{ url_for('portal.enter') }}" class="mt" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="field">
+      <label for="code">Test code</label>
+      <input type="text" id="code" name="code" value="{{ code or '' }}" class="code-input" autocapitalize="characters" autocomplete="off" spellcheck="false" maxlength="40" required autofocus placeholder="ABCD-2345">
+    </div>
+    <div class="field">
+      <label for="student_id">Student ID</label>
+      <input type="text" id="student_id" name="student_id" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="64" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Continue</button>
+  </form>
+  <div class="alt">
+    <p class="small muted">Instructors and administrators sign in on the <a href="{{ url_for('auth.login') }}">staff site</a>.</p>
+  </div>
+</div>
+{% endblock %}

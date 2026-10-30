@@ -1,0 +1,24 @@
+{% extends "portal/base.html" %}
+{% block title %}Is this you?{% endblock %}
+{% block content %}
+<div class="signin">
+  <p class="institution">{{ assessment.course.code }}: {{ assessment.title }}</p>
+  <h1>Are you {{ name }}?</h1>
+  <p class="muted">Only continue if this is you. Taking a test as someone else is academic misconduct, and every sign-in is recorded.</p>
+  {% if error %}<div class="flash flash-error" role="alert">{{ error }}</div>{% endif %}
+  <form method="post" action="{{ url_for('portal.verify') }}" class="mt" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if pin_needed %}
+    <div class="field">
+      <label for="pin">Your PIN</label>
+      <input type="password" id="pin" name="pin" inputmode="numeric" autocomplete="off" maxlength="32" required autofocus class="code-input">
+      <div class="help">The personal PIN your teacher gave you. It is not your test code.</div>
+    </div>
+    {% endif %}
+    <div class="actions">
+      <button type="submit" name="answer" value="yes" class="btn btn-primary">Yes, this is me</button>
+      <button type="submit" name="answer" value="no" class="btn" formnovalidate>No, that's not me</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

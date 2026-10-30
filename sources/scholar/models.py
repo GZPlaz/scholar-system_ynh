@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from flask_login import UserMixin
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -13,6 +13,13 @@ def utcnow():
 
 
 ROLES = {"admin": "Administrator", "instructor": "Instructor", "student": "Student"}
+
+# Students never sign in to the staff site: they are test takers who identify themselves in the
+# test portal (/test/) with an assessment's test code and their student ID (plus a PIN if asked).
+IDENTITY_CHECKS = {
+    "confirm": "Student confirms their name",
+    "pin": "Student confirms their name and enters their personal PIN",
+}
 
 QTYPES = {
     "mc": "Multiple choice",
@@ -51,6 +58,9 @@ class User(UserMixin, db.Model):
     last_login_at = db.Column(db.DateTime)
     # Identity in a connected system, e.g. "rosario:student:42" (set by the integration API)
     external_id = db.Column(db.String(120), index=True)
+    # Students only: hash of the personal test-portal PIN (never stored in clear)
+    pin_hash = db.Column(db.String(256))
+    pin_set_at = db.Column(db.DateTime)
 
     @property
     def is_active(self):
@@ -61,6 +71,18 @@ class User(UserMixin, db.Model):
 
     def check_password(self, password):
         return bool(self.password_hash) and check_password_hash(self.password_hash, password)
+
+    def set_pin(self, pin):
+        self.pin_hash = generate_password_hash(pin)
+        self.pin_set_at = utcnow()
+
+    def check_pin(self, pin):
+        return bool(self.pin_hash) and bool(pin) and check_password_hash(self.pin_hash, pin)
+
+    @property
+    def can_sign_in(self):
+        """Only staff use the staff site; students only ever use the test portal."""
+        return self.is_staff and bool(self.active)
 
     @property
     def is_admin(self):
@@ -244,10 +266,22 @@ class Assessment(db.Model):
     show_results = db.Column(db.String(20), nullable=False, default="immediately")
     show_correct_answers = db.Column(db.Boolean, nullable=False, default=False)
     results_released = db.Column(db.Boolean, nullable=False, default=False)
+    # The test code students type in the test portal (normalized: upper case, no separators).
     access_code = db.Column(db.String(60), nullable=False, default="")
     allow_online = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=utcnow, onupdate=utcnow)
+
+    # --- test-taking security (all enforced on the server; the browser only reports) ---
+    identity_check = db.Column(db.String(20), nullable=False, default="confirm")  # see IDENTITY_CHECKS
+    require_approval = db.Column(db.Boolean, nullable=False, default=False)  # proctor admits each student
+    lock_to_device = db.Column(db.Boolean, nullable=False, default=True)  # one browser per attempt
+    require_fullscreen = db.Column(db.Boolean, nullable=False, default=False)
+    block_copy_paste = db.Column(db.Boolean, nullable=False, default=True)
+    max_focus_losses = db.Column(db.Integer)  # lock the attempt after this many exits; None = only log
+    allowed_networks = db.Column(db.Text, nullable=False, default="")  # IPs / CIDR ranges, one per line
+    late_start_minutes = db.Column(db.Integer)  # no new starts this long after opening
+    watermark = db.Column(db.Boolean, nullable=False, default=True)  # student name across the test
 
     course = db.relationship("Course", back_populates="assessments")
     owner = db.relationship("User")
@@ -282,6 +316,20 @@ class Assessment(db.Model):
 
     def is_open(self, now=None):
         return self.window_state(now) == "open" and self.allow_online
+
+    def late_start_cutoff(self):
+        if self.late_start_minutes and self.opens_at:
+            return self.opens_at + timedelta(minutes=self.late_start_minutes)
+        return None
+
+    @property
+    def network_list(self):
+        return [line.strip() for line in (self.allowed_networks or "").splitlines() if line.strip()]
+
+    @property
+    def display_code(self):
+        code = self.access_code or ""
+        return f"{code[:4]}-{code[4:]}" if len(code) == 8 else code
 
     def results_visible(self, now=None):
         if self.results_released:
@@ -330,11 +378,20 @@ class Attempt(db.Model):
     item_order = db.Column(db.Text, nullable=False, default="[]")
     choice_order = db.Column(db.Text, nullable=False, default="{}")
     entered_by_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
+    # proctoring
+    extra_minutes = db.Column(db.Integer, nullable=False, default=0)  # time added by a proctor
+    locked = db.Column(db.Boolean, nullable=False, default=False)  # paused until a proctor unlocks
+    lock_reason = db.Column(db.String(200), nullable=False, default="")
+    focus_losses = db.Column(db.Integer, nullable=False, default=0)
+    ip = db.Column(db.String(64), nullable=False, default="")
 
     assessment = db.relationship("Assessment", back_populates="attempts")
     user = db.relationship("User", foreign_keys=[user_id], backref=db.backref("attempts", cascade="all, delete-orphan"))
     entered_by = db.relationship("User", foreign_keys=[entered_by_id])
     responses = db.relationship("Response", back_populates="attempt", cascade="all, delete-orphan")
+    events = db.relationship(
+        "AttemptEvent", back_populates="attempt", cascade="all, delete-orphan", order_by="AttemptEvent.id"
+    )
 
     @property
     def percent(self):
@@ -343,6 +400,12 @@ class Attempt(db.Model):
     @property
     def is_submitted(self):
         return self.status == "submitted"
+
+    @property
+    def duration_seconds(self):
+        if self.source != "online" or not self.submitted_at or not self.started_at:
+            return None
+        return max(0, int((self.submitted_at - self.started_at).total_seconds()))
 
     def get_item_order(self):
         try:
@@ -490,3 +553,89 @@ class ApiToken(db.Model):
     revoked = db.Column(db.Boolean, nullable=False, default=False)
 
     created_by = db.relationship("User")
+
+
+# --------------------------------------------------------------------------- test portal
+
+
+class TestSession(db.Model):
+    """A student's sign-in to the test portal for one assessment.
+
+    The browser holds a random token in a cookie scoped to /test; only its SHA-256 is stored.
+    status: confirm (code and ID accepted, identity not yet confirmed) → waiting (needs a
+    proctor) → ready (may start or resume) → ended (submitted, signed out, replaced or revoked).
+    """
+
+    __tablename__ = "test_sessions"
+    __test__ = False  # not a pytest class
+
+    id = db.Column(db.Integer, primary_key=True)
+    token_hash = db.Column(db.String(64), unique=True, nullable=False)
+    assessment_id = db.Column(db.Integer, db.ForeignKey("assessments.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    attempt_id = db.Column(db.Integer, db.ForeignKey("attempts.id", ondelete="SET NULL"))
+    status = db.Column(db.String(20), nullable=False, default="confirm")
+    end_reason = db.Column(db.String(120), nullable=False, default="")
+    ip = db.Column(db.String(64), nullable=False, default="")
+    user_agent = db.Column(db.String(300), nullable=False, default="")
+    pin_failures = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    last_seen_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    expires_at = db.Column(db.DateTime, nullable=False)
+
+    assessment = db.relationship("Assessment", backref=db.backref("test_sessions", cascade="all, delete-orphan"))
+    user = db.relationship("User", backref=db.backref("test_sessions", cascade="all, delete-orphan"))
+    attempt = db.relationship("Attempt")
+
+
+EVENT_LABELS = {
+    "started": "Started",
+    "resumed": "Resumed",
+    "submitted": "Submitted",
+    "focus_lost": "Left the test page",
+    "fullscreen_exit": "Left full screen",
+    "fullscreen_unsupported": "Browser can't do full screen",
+    "copy_blocked": "Tried to copy",
+    "paste_blocked": "Tried to paste",
+    "contextmenu_blocked": "Tried to open the context menu",
+    "print_blocked": "Tried to print",
+    "ip_change": "Network changed",
+    "device_change": "Moved to another device",
+    "device_blocked": "Sign-in from another device refused",
+    "device_reset": "Signed out by a proctor",
+    "session_hijack_blocked": "Session used from another browser: refused",
+    "locked": "Paused",
+    "unlocked": "Allowed to continue",
+    "time_added": "Time added",
+    "force_submitted": "Submitted by a proctor",
+}
+EVENT_ATTENTION = {
+    "focus_lost", "fullscreen_exit", "copy_blocked", "paste_blocked", "print_blocked", "ip_change",
+    "device_change", "device_blocked", "session_hijack_blocked", "locked",
+}
+
+
+class AttemptEvent(db.Model):
+    """Integrity timeline of an attempt: starts, device and network changes, focus losses, proctor actions."""
+
+    __tablename__ = "attempt_events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    attempt_id = db.Column(db.Integer, db.ForeignKey("attempts.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    kind = db.Column(db.String(40), nullable=False)
+    detail = db.Column(db.String(300), nullable=False, default="")
+    ip = db.Column(db.String(64), nullable=False, default="")
+
+    attempt = db.relationship("Attempt", back_populates="events")
+
+
+class PortalFailure(db.Model):
+    """Failed test-portal sign-ins, for throttling (old rows are pruned)."""
+
+    __tablename__ = "portal_failures"
+
+    id = db.Column(db.Integer, primary_key=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow, index=True)
+    ip = db.Column(db.String(64), nullable=False, index=True)
+    scope = db.Column(db.String(120), nullable=False, default="", index=True)  # e.g. "pin:12:34"

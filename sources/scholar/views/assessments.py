@@ -1,7 +1,7 @@
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
-from ..analytics import item_analysis, score_summary
+from ..analytics import assessment_insights, item_analysis, score_summary
 from ..extensions import db
 from ..grading import (
     counted_attempts,
@@ -14,6 +14,7 @@ from ..grading import (
     start_attempt,
 )
 from ..models import (
+    IDENTITY_CHECKS,
     QTYPES,
     SHOW_RESULTS,
     Assessment,
@@ -41,6 +42,7 @@ from ..utils import (
     safe_filename,
     staff_required,
 )
+from ..security import ensure_code, generate_code, parse_networks, validate_custom_code
 from .questions import visible_questions_query
 
 bp = Blueprint("assessments", __name__, url_prefix="/assessments")
@@ -87,6 +89,25 @@ def _apply_settings(assessment, form):
     show_results = form.get("show_results", "immediately")
     if show_results not in SHOW_RESULTS:
         errors.append("Invalid results policy.")
+    # test-taking security
+    code = None
+    if form.get("access_code", "").strip():
+        code, error = validate_custom_code(form.get("access_code"), assessment)
+        if error:
+            errors.append(error)
+    identity_check = form.get("identity_check", "confirm")
+    if identity_check not in IDENTITY_CHECKS:
+        errors.append("Choose how students prove who they are.")
+    max_focus_losses = parse_int(form.get("max_focus_losses")) if form.get("max_focus_losses", "").strip() else None
+    if max_focus_losses is not None and not 1 <= max_focus_losses <= 50:
+        errors.append("Pausing after leaving the test needs a number from 1 to 50, or leave it empty.")
+    late_start = parse_int(form.get("late_start_minutes")) if form.get("late_start_minutes", "").strip() else None
+    if late_start is not None and late_start <= 0:
+        errors.append("The late-start limit must be at least 1 minute, or leave it empty.")
+    if late_start is not None and opens_at is None:
+        errors.append("A late-start limit counts from the opening time: set when the test opens.")
+    networks_text = "\n".join(line.strip() for line in form.get("allowed_networks", "").splitlines() if line.strip())[:4000]
+    errors.extend(parse_networks(networks_text)[1])
     if errors:
         return errors
     assessment.title = title[:200]
@@ -99,8 +120,20 @@ def _apply_settings(assessment, form):
     assessment.shuffle_choices = parse_bool(form.get("shuffle_choices", ""))
     assessment.show_results = show_results
     assessment.show_correct_answers = parse_bool(form.get("show_correct_answers", ""))
-    assessment.access_code = form.get("access_code", "").strip()[:60]
     assessment.allow_online = parse_bool(form.get("allow_online", ""))
+    if code:
+        assessment.access_code = code
+    else:
+        ensure_code(assessment)
+    assessment.identity_check = identity_check
+    assessment.require_approval = parse_bool(form.get("require_approval", ""))
+    assessment.lock_to_device = parse_bool(form.get("lock_to_device", ""))
+    assessment.require_fullscreen = parse_bool(form.get("require_fullscreen", ""))
+    assessment.block_copy_paste = parse_bool(form.get("block_copy_paste", ""))
+    assessment.watermark = parse_bool(form.get("watermark", ""))
+    assessment.max_focus_losses = max_focus_losses
+    assessment.late_start_minutes = late_start
+    assessment.allowed_networks = networks_text
     return []
 
 
@@ -125,7 +158,15 @@ def new():
         db.session.commit()
         flash("Assessment created. Now add questions.", "success")
         return redirect(url_for("assessments.detail", assessment_id=assessment.id))
-    defaults = {"max_attempts": "1", "show_results": "immediately", "allow_online": "1"}
+    defaults = {
+        "max_attempts": "1",
+        "show_results": "immediately",
+        "allow_online": "1",
+        "identity_check": "confirm",
+        "lock_to_device": "1",
+        "block_copy_paste": "1",
+        "watermark": "1",
+    }
     return render_template("assessments/settings.html", assessment=None, course=course, form=defaults)
 
 
@@ -310,6 +351,15 @@ def duplicate(assessment_id):
         show_results=source.show_results,
         show_correct_answers=source.show_correct_answers,
         allow_online=source.allow_online,
+        identity_check=source.identity_check,
+        require_approval=source.require_approval,
+        lock_to_device=source.lock_to_device,
+        require_fullscreen=source.require_fullscreen,
+        block_copy_paste=source.block_copy_paste,
+        max_focus_losses=source.max_focus_losses,
+        allowed_networks=source.allowed_networks,
+        watermark=source.watermark,
+        access_code=generate_code(),
     )
     db.session.add(copy)
     copy.course = course
@@ -342,7 +392,7 @@ def delete(assessment_id):
 def preview(assessment_id):
     assessment = get_assessment(assessment_id)
     entries = [{"item": item, "choices": item.question.choices, "answer": None} for item in assessment.items]
-    return render_template("student/take.html", assessment=assessment, attempt=None, entries=entries, preview=True, remaining=None)
+    return render_template("portal/take.html", assessment=assessment, attempt=None, entries=entries, preview=True, remaining=None, student=None)
 
 
 # --------------------------------------------------------------------------- results
@@ -402,6 +452,29 @@ def results(assessment_id):
         return csv_response(f"{safe_filename(assessment.course.code + '_' + assessment.title)}_results.csv", header, data)
     summary = score_summary([r["counted"].percent for r in rows if r["counted"]])
     return render_template("assessments/results.html", assessment=assessment, rows=rows, summary=summary)
+
+
+@bp.route("/<int:assessment_id>/insights")
+@staff_required
+def insights(assessment_id):
+    assessment = get_assessment(assessment_id)
+    enforce_deadlines([a for a in assessment.attempts if a.status == "in_progress"])
+    data = assessment_insights(assessment)
+    if request.args.get("format") == "csv":
+        header = [
+            "username", "full_name", "student_number", "source", "percent", "z_score", "percentile_rank", "minutes",
+            "left_page", "device_events", "network_changes", "blocked_actions", "paused", "rapid_finish", "similar_answers",
+        ]
+        lines = [
+            [
+                r["user"].username, r["user"].full_name, r["user"].student_number, r["attempt"].source, f"{r['percent']:.1f}",
+                f"{r['z']:.2f}", f"{r['rank']:.0f}", "" if r["minutes"] is None else f"{r['minutes']:.1f}",
+                r["focus_losses"], r["device_events"], r["ip_changes"], r["blocked"], int(r["paused"]), int(r["rapid"]), int(r["similar"]),
+            ]
+            for r in data["students"]
+        ]
+        return csv_response(f"{safe_filename(assessment.course.code + '_' + assessment.title)}_analytics.csv", header, lines)
+    return render_template("assessments/insights.html", assessment=assessment, d=data)
 
 
 @bp.route("/<int:assessment_id>/analysis")
@@ -547,7 +620,7 @@ def attempt_detail(assessment_id, attempt_id):
         if request.form.get("next_pending") and nxt:
             return redirect(url_for("assessments.attempt_detail", assessment_id=assessment.id, attempt_id=nxt.id))
         return redirect(url_for("assessments.attempt_detail", assessment_id=assessment.id, attempt_id=attempt.id))
-    from .student import review_entries
+    from ..taking import review_entries
 
     return render_template("assessments/attempt.html", assessment=assessment, attempt=attempt, entries=review_entries(attempt, True))
 

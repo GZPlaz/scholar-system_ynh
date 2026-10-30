@@ -1,0 +1,9 @@
+{% extends "portal/base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="signin">
+  <h1>{{ title }}</h1>
+  <p>{{ text }}</p>
+  {% if back %}<p class="mt"><a class="btn" href="{{ url_for('portal.enter') }}">Back to the start</a></p>{% endif %}
+</div>
+{% endblock %}

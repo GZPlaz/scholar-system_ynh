@@ -20,13 +20,14 @@
     <div class="field"><label for="student_number">Student / staff ID</label><input type="text" id="student_number" name="student_number" value="{{ user.student_number if user else f.get('student_number', '') }}"></div>
   </div>
   {% set src = user.auth_source if user else f.get('auth_source', 'local') %}
-  <div class="field"><span class="label">Sign-in method</span>
+  <p class="help">Students have no password and can't sign in here: they take tests in the test portal with a test code and their student ID (and a PIN if the test asks for one). The sign-in settings below are for instructors and administrators.</p>
+  <div class="field"><span class="label">Sign-in method (staff)</span>
     <label class="check"><input type="radio" name="auth_source" value="local" {{ 'checked' if src == 'local' }}> Local Scholar account (password stored in Scholar)</label>
     <label class="check"><input type="radio" name="auth_source" value="ldap" {{ 'checked' if src == 'ldap' }}> YunoHost account (password checked against YunoHost / SSO)</label>
   </div>
   <div class="form-row">
     <div class="field"><label for="password">{{ 'Set new password' if user else 'Password' }}</label><input type="password" id="password" name="password" minlength="8" autocomplete="new-password">
-      <div class="help">Local accounts only. Leave empty to {{ 'keep the current password' if user else 'generate a temporary one' }}.</div></div>
+      <div class="help">Local staff accounts only. Leave empty to {{ 'keep the current password' if user else 'generate a temporary one' }}.</div></div>
     <div class="field" style="align-self:center"><label class="check"><input type="checkbox" name="must_change_password" value="1" checked> Require a password change at next sign-in</label></div>
   </div>
   <label class="check"><input type="checkbox" name="active" value="1" {{ 'checked' if (user.active if user else True) }}> Account is active</label>

@@ -1,13 +1,36 @@
-{% extends "base.html" %}
+{% extends "portal/base.html" %}
 {% from "_macros.html" import bubble with context %}
 {% block title %}{{ assessment.title }}{% endblock %}
+{% block main_class %}take{% endblock %}
+{% block leave %}{% endblock %}
 {% block content %}
 {% if preview %}
 <div class="flash flash-info no-print">Preview: this is what students see. Answers are not saved. <a href="{{ url_for('assessments.detail', assessment_id=assessment.id) }}">Back to the assessment</a></div>
 {% endif %}
+{% if assessment.watermark and student %}
+<div class="watermark" aria-hidden="true">{% for _ in range(60) %}<span>{{ student.display_name }} {{ student.student_number }}</span>{% endfor %}</div>
+{% endif %}
+<div class="lock-screen" id="fullscreen-gate" hidden>
+  <div>
+    <h1>Full screen is required</h1>
+    <p>This test runs in full screen. Leaving full screen is recorded for your teacher.</p>
+    <button type="button" class="btn btn-primary" id="enter-fullscreen">Continue in full screen</button>
+  </div>
+</div>
+<div class="lock-screen" id="paused-gate" hidden>
+  <div>
+    <h1>Your test is paused</h1>
+    <p id="paused-reason">Your proctor paused your test.</p>
+    <p class="small muted">Raise your hand: your proctor can let you continue. Your saved answers are safe, and the timer keeps running.</p>
+  </div>
+</div>
 <form method="post" id="take-form"
-      action="{{ url_for('student.submit', attempt_id=attempt.id) if attempt else '#' }}"
-      data-save-url="{{ url_for('student.autosave', attempt_id=attempt.id) if attempt else '' }}"
+      action="{{ url_for('portal.submit') if attempt else '#' }}"
+      data-save-url="{{ url_for('portal.autosave') if attempt else '' }}"
+      data-status-url="{{ url_for('portal.status') if attempt else '' }}"
+      data-event-url="{{ url_for('portal.event') if attempt else '' }}"
+      {% if assessment.require_fullscreen %}data-fullscreen{% endif %}
+      {% if assessment.block_copy_paste %}data-block-copy{% endif %}
       {% if preview %}data-preview{% endif %}>
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="take-bar">

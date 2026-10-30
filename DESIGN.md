@@ -14,6 +14,9 @@ colors:
   pencil: "#F9E3A0"     # #2-pencil yellow: "approaching" mastery fill (text #5A4300)
   mastered: "#D5E8C0"   # mastered fill (text #2C5216)
   notyet: "#F5D3CE"     # not-yet fill (text #8A1C14)
+  chart-mastered: "#4F8A2B"     # chart marks for mastery levels (validated as a 3-hue set on paper,
+  chart-approaching: "#C99A06"  # CVD ΔE ≥ 9; approaching is < 3:1, so segments always carry
+  chart-notyet: "#A8231A"       # their count and every chart has a table beside it)
 typography:
   ui:
     fontFamily: Public Sans (variable, self-hosted, OFL)
@@ -97,6 +100,8 @@ Flat. Paper does not float. The only raised element is the sticky bar while sitt
 - **Scannable answer sheet:** one full page per student per printed page, laid out in millimetres by `scholar/omr.py` (the template only places what that module computes). Four 8 mm black corner squares and a row of 3 mm code squares are drawn in SVG so they print even with "background graphics" off; they are the only pure black on the sheet and must stay solid black. Bubbles are dropout-green rings with the letter in a pale green inside, so pencil is the darkest thing in a bubble. Don't resize, recolour or move these marks in CSS: the reader expects them exactly where `omr.py` says.
 - **Tally:** a run of real numbers set inline (`7 submitted   0 in progress   7 awaiting grading`), not a row of identical stat boxes. A number turns red pen only when it asks for action.
 - **Buttons:** primary graphite fill; secondary paper with a graphite border; danger in red pen. All have hover, active, `:focus-visible` (2px graphite outline, 2px offset) and disabled states.
+- **Charts (analytics):** inline SVG, no library. Marks are graphite (the pencil mark that counts), flagged marks red pen with a label; axes and guide lines are dropout. Flat bars with a 2px paper gap, 10px dots with a paper ring, a hover tip on every mark, and a table with the same numbers next to every chart. Mastery spreads use the chart-* tokens, always with counts in the segments.
+- **Test portal:** the same paper and type, with a stripped header (no staff navigation). Locks and pauses replace the page with a plain centred notice on paper, never a modal over the questions. The student's name and ID repeat faintly (4.5% graphite) across the test as a watermark.
 - **Notes:** an explanation is introduced by a dropout label; an instructor's feedback is set in red-pen serif italic, like a margin note. No coloured side stripes.
 
 ## Do's and Don'ts

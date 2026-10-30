@@ -18,8 +18,8 @@ SETTING_DEFAULTS = {
     "timezone": None,  # falls back to config DEFAULT_TIMEZONE
     "mastery_threshold": "80",
     "approaching_threshold": "60",
-    "ldap_autoprovision": "1",
-    "ldap_default_role": "student",
+    "ldap_autoprovision": "0",  # create unknown YunoHost users as instructors when they sign in
+    "ldap_default_role": "instructor",
     "attempt_policy": "best",  # best | latest — which attempt counts for reports
     "login_message": "",
 }
@@ -124,7 +124,8 @@ def fmt_num(value, digits=2):
         return "—"
     if abs(value - round(value)) < 1e-9:
         return str(int(round(value)))
-    return f"{value:.{digits}f}".rstrip("0").rstrip(".")
+    text = f"{value:.{digits}f}"
+    return text.rstrip("0").rstrip(".") if "." in text else text
 
 
 # --------------------------------------------------------------------------- access control

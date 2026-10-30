@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% from "_macros.html" import assessment_tabs with context %}
+{% from "_charts.html" import bars, scatter, mastery_rows with context %}
+{% block title %}Analytics, {{ assessment.title }}{% endblock %}
+{% block content %}
+{% call assessment_tabs(assessment, 'insights') %}{% if d.n %}<a class="btn" href="{{ url_for('assessments.insights', assessment_id=assessment.id, format='csv') }}">Download CSV</a>{% endif %}{% endcall %}
+
+{% if not d.n %}
+<p class="empty">No submitted results yet. Analytics appear here as soon as students submit.</p>
+{% else %}
+{% set s = d.scores %}
+<div class="tally">
+  <div><b>{{ d.completion.submitted }}</b><span>of {{ d.completion.enrolled }} enrolled submitted</span></div>
+  {% if d.completion.in_progress %}<div><b>{{ d.completion.in_progress }}</b><span>still writing</span></div>{% endif %}
+  <div><b>{{ s.mean|pct(0) }}</b><span>mean</span></div>
+  <div><b>{{ s.median|pct(0) }}</b><span>median</span></div>
+  <div><b>{{ s.sd|num(1) }}</b><span>standard deviation (points of %)</span></div>
+  <div class="{{ 'attn' if d.alpha is not none and d.alpha < 0.5 }}"><b>{{ d.alpha|num(2) if d.alpha is not none else '—' }}</b><span>reliability (α)</span></div>
+</div>
+
+<section class="section">
+  <div class="section-head"><h2>Scores</h2><span class="small muted">Counted attempt per student ({{ d.n }}), as a percentage of {{ d.max_score|num }} points</span></div>
+  <div class="grid-charts">
+    <div>
+      {% set labels = [] %}{% for i in range(10) %}{% set _ = labels.append((i * 10) ~ '') %}{% endfor %}
+      {% set tips = [] %}{% for c in s.bins %}{% set _ = tips.append((loop.index0 * 10) ~ '–' ~ (loop.index0 * 10 + 10) ~ '%: ' ~ c ~ ' student' ~ ('s' if c != 1 else '')) %}{% endfor %}
+      <h3 class="chart-title">Score distribution</h3>
+      {{ bars(s.bins, labels, 'Number of students in each 10% score band', tips=tips, markers=[{'at': d.thresholds.approaching / 100, 'label': 'Approaching ' ~ d.thresholds.approaching|num ~ '%'}, {'at': d.thresholds.mastery / 100, 'label': 'Mastery ' ~ d.thresholds.mastery|num ~ '%'}]) }}
+    </div>
+    <div>
+      <h3 class="chart-title">Spread</h3>
+      <table class="table compact">
+        <tr><th>Lowest</th><td class="num">{{ s.min|pct }}</td><th>Highest</th><td class="num">{{ s.max|pct }}</td></tr>
+        <tr><th>10th percentile</th><td class="num">{{ s.p10|pct }}</td><th>90th percentile</th><td class="num">{{ s.p90|pct }}</td></tr>
+        <tr><th>Lower quartile</th><td class="num">{{ s.q1|pct }}</td><th>Upper quartile</th><td class="num">{{ s.q3|pct }}</td></tr>
+        <tr><th>Skew</th><td class="num">{{ s.skew|num(2) if s.skew is not none else '—' }}</td><td colspan="2" class="small muted">{% if s.skew is not none %}{{ 'Most students scored high (a long tail of low scores).' if s.skew < -0.5 else ('Most students scored low (a long tail of high scores).' if s.skew > 0.5 else 'Roughly symmetric.') }}{% endif %}</td></tr>
+      </table>
+      <p class="stat-line"><span><b>{{ s.levels['mastered'] }}</b> mastered (≥ {{ d.thresholds.mastery|num }}%)</span><span><b>{{ s.levels['approaching'] }}</b> approaching</span><span class="{{ 'attn' if s.levels['not-yet'] }}"><b>{{ s.levels['not-yet'] }}</b> not yet (&lt; {{ d.thresholds.approaching|num }}%)</span></p>
+      {% if d.by_source|length > 1 %}<p class="small muted">Online mean {{ d.by_source.online|pct(0) }}, paper mean {{ d.by_source.paper|pct(0) }}.</p>{% endif %}
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head"><h2>Reliability</h2></div>
+  <table class="table kv compact">
+    <tr><th>Cronbach's α (KR-20)</th><td class="num">{{ d.alpha|num(2) if d.alpha is not none else '—' }}</td>
+      <td class="small">{% if d.alpha is none %}Needs at least 2 students and 2 questions with varied scores.{% elif d.alpha >= 0.8 %}Very consistent: the questions measure the same thing well.{% elif d.alpha >= 0.7 %}Good for a classroom test.{% elif d.alpha >= 0.5 %}Fair: fine for a quiz, weak for a decisive exam.{% else %}Low: scores say little about a student's real level. Look at the questions flagged below.{% endif %}</td></tr>
+    <tr><th>Split-half (Spearman-Brown)</th><td class="num">{{ d.split_half|num(2) if d.split_half is not none else '—' }}</td><td class="small">Odd against even questions; should be close to α.</td></tr>
+    <tr><th>Standard error of measurement</th><td class="num">{{ (d.sem / (d.max_score or 1) * 100)|pct(1) if d.sem is not none else '—' }}</td><td class="small">{% if d.sem is not none %}A score of 70% means roughly 70 ± {{ (d.sem / (d.max_score or 1) * 100 * 1.96)|num(0) }} points of % (95% band).{% endif %}</td></tr>
+  </table>
+</section>
+
+<section class="section">
+  <div class="section-head"><h2>Questions</h2><a class="small" href="{{ url_for('assessments.analysis', assessment_id=assessment.id) }}">Full item analysis with distractors</a></div>
+  <div class="grid-charts">
+    <div>
+      <h3 class="chart-title">Difficulty and discrimination</h3>
+      {% if d.item_points %}
+      {{ scatter(d.item_points, 'Each question by share of students correct and discrimination', '% of students correct', 'Discrimination (point-biserial)', 0, 100, -0.4, 1, guides_x=[{'at': 30, 'label': 'hard'}, {'at': 90, 'label': 'easy'}], guides_y=[{'at': 0.2, 'label': '0.2'}], yfmt='%.1f') }}
+      <p class="small muted">Good questions sit above the dashed line. Red questions are flagged: below the line they don't separate stronger from weaker students; below zero, check the answer key.</p>
+      {% else %}<p class="muted">Needs at least 3 graded results per question.</p>{% endif %}
+    </div>
+    <div>
+      <h3 class="chart-title">Questions to look at</h3>
+      {% if d.review_items %}
+      <table class="table compact"><thead><tr><th>Q</th><th class="num">Correct</th><th class="num">Discr.</th><th>Why</th></tr></thead><tbody>
+      {% for e in d.review_items %}<tr><td>{{ e.number }}</td><td class="num">{{ (e.p_value * 100)|pct(0) if e.p_value is not none else '—' }}</td><td class="num {{ 'attn' if e.rpb is not none and e.rpb < 0 }}">{{ e.rpb|num(2) if e.rpb is not none else '—' }}</td><td class="small">{{ e.flags|join('; ') }}<div class="muted">{{ e.question.stem_preview }}</div></td></tr>{% endfor %}
+      </tbody></table>
+      {% else %}<p class="muted">No question discriminates poorly.</p>{% endif %}
+      <h3 class="chart-title mt">Most missed</h3>
+      <table class="table compact"><tbody>
+      {% for e in d.hardest %}<tr><td>Q{{ e.number }}</td><td class="num nowrap">{{ (e.p_value * 100)|pct(0) }} correct</td><td class="small">{{ e.question.stem_preview }}</td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+  </div>
+</section>
+
+{% if d.timing %}{% set t = d.timing %}
+<section class="section">
+  <div class="section-head"><h2>Time</h2><span class="small muted">Online attempts only, from starting to submitting</span></div>
+  <p class="stat-line"><span>Median <b>{{ t.median|num(0) }}</b> min</span><span>Middle half <b>{{ t.q1|num(0) }}–{{ t.q3|num(0) }}</b> min</span><span>Longest <b>{{ t.max|num(0) }}</b> min</span>{% if t.limit %}<span><b>{{ t.used_all }}</b> used the full {{ t.limit }} minutes</span>{% endif %}{% if t.corr is not none %}<span>Time and score correlation <b>{{ t.corr|num(2) }}</b></span>{% endif %}</p>
+  <div class="grid-charts">
+    <div>
+      <h3 class="chart-title">Time taken</h3>
+      {% set labels = [] %}{% set tips = [] %}{% for c in t.bins %}{% set _ = labels.append((loop.index0 * t.step) ~ '') %}{% set _ = tips.append((loop.index0 * t.step) ~ '–' ~ (loop.index0 * t.step + t.step) ~ ' min: ' ~ c ~ ' student' ~ ('s' if c != 1 else '')) %}{% endfor %}
+      {{ bars(t.bins, labels, 'Number of students by minutes taken', tips=tips, markers=([{'at': [t.limit / (t.step * 12), 1]|min, 'label': 'Time limit'}] if t.limit else [])) }}
+      <p class="small muted">Minutes, in bands of {{ t.step }}.</p>
+    </div>
+    <div>
+      <h3 class="chart-title">Score against time</h3>
+      {{ scatter(t.points, 'Each student by minutes taken and score', 'Minutes', 'Score (%)', 0, [t.max, t.limit or 0, 1]|max, 0, 100, guides_x=([{'at': t.limit, 'label': 'limit'}] if t.limit else []), label_flagged=False) }}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{% if d.standards %}
+<section class="section">
+  <div class="section-head"><h2>Standards on this test</h2><span class="small muted">Students at each level, from the questions aligned to each standard</span></div>
+  {{ mastery_rows(d.standards) }}
+  <div class="table-wrap mt"><table class="table compact">
+    <thead><tr><th>Standard</th><th class="num">Questions</th><th class="num">Points</th><th class="num">Class mean</th><th class="num">Mastered</th><th class="num">Approaching</th><th class="num">Not yet</th></tr></thead>
+    <tbody>{% for r in d.standards %}<tr><td><span class="tag">{{ r.standard.code }}</span> <span class="small">{{ r.standard.title }}</span></td><td class="num">{{ r['items'] }}</td><td class="num">{{ r.points|num }}</td><td class="num">{{ r.mean|pct(0) }}</td><td class="num">{{ r.dist['mastered'] }}</td><td class="num">{{ r.dist['approaching'] }}</td><td class="num">{{ r.dist['not-yet'] }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+{% endif %}
+
+{% set ig = d.integrity %}
+<section class="section">
+  <div class="section-head"><h2>Integrity</h2><span class="small muted">Signals worth a conversation, never proof on their own</span></div>
+  <div class="tally">
+    <div class="{{ 'attn' if ig.left_page }}"><b>{{ ig.left_page }}</b><span>left the test page ({{ ig.exits }} times)</span></div>
+    <div class="{{ 'attn' if ig.paused }}"><b>{{ ig.paused }}</b><span>were paused</span></div>
+    <div class="{{ 'attn' if ig.devices }}"><b>{{ ig.devices }}</b><span>changed or shared a device</span></div>
+    <div><b>{{ ig.networks }}</b><span>changed network</span></div>
+    <div><b>{{ ig.blocked }}</b><span>blocked copy, paste or print</span></div>
+    <div class="{{ 'attn' if ig.rapid }}"><b>{{ ig.rapid }}</b><span>rapid low-scoring finishes</span></div>
+    <div class="{{ 'attn' if ig.similarity.pairs }}"><b>{{ ig.similarity.pairs|length }}</b><span>pairs with matching wrong answers</span></div>
+  </div>
+  {% if ig.similarity.pairs %}
+  <h3>Matching wrong answers</h3>
+  <p class="small">These pairs chose the same wrong option on unusually many questions (class average {{ ig.similarity.mean|num(1) }} per pair; flagged from {{ ig.similarity.threshold|num(1) }}). Check where they sat and whether the answer key is wrong.</p>
+  <table class="table compact"><thead><tr><th>Students</th><th class="num">Same wrong answers</th><th class="num">Of questions both got wrong</th></tr></thead><tbody>
+  {% for p in ig.similarity.pairs %}<tr><td><a href="{{ url_for('assessments.attempt_detail', assessment_id=assessment.id, attempt_id=p.a.id) }}">{{ p.a.user.display_name }}</a> and <a href="{{ url_for('assessments.attempt_detail', assessment_id=assessment.id, attempt_id=p.b.id) }}">{{ p.b.user.display_name }}</a></td><td class="num attn">{{ p.same }}</td><td class="num">{{ p.both_wrong }} ({{ (p.share * 100)|pct(0) }} identical)</td></tr>{% endfor %}
+  </tbody></table>
+  {% elif not ig.similarity.checked %}<p class="small muted">Answer matching needs at least 5 choice questions and 3 students (and runs for up to 400 students).</p>{% endif %}
+</section>
+
+<section class="section">
+  <div class="section-head"><h2>Students</h2><span class="small muted">Sorted by score</span></div>
+  <div class="table-wrap"><table class="table compact">
+    <thead><tr><th>Student</th><th class="num">Score</th><th class="num" title="Standard score: how many standard deviations from the mean">z</th><th class="num">Percentile</th><th class="num">Minutes</th><th class="num">Left page</th><th class="num">Device / network</th><th>Signals</th></tr></thead>
+    <tbody>{% for r in d.students %}
+    <tr>
+      <td><a href="{{ url_for('assessments.attempt_detail', assessment_id=assessment.id, attempt_id=r.attempt.id) }}#timeline">{{ r.user.display_name }}</a>{% if r.attempt.source == 'paper' %} <span class="small muted">paper</span>{% endif %}</td>
+      <td class="num lvl lvl-{{ r.level }}">{{ r.percent|pct(0) }}</td>
+      <td class="num">{{ '%+.2f'|format(r.z) }}</td>
+      <td class="num">{{ r.rank|num(0) }}</td>
+      <td class="num">{{ r.minutes|num(0) if r.minutes is not none else '—' }}</td>
+      <td class="num {{ 'attn' if r.focus_losses }}">{{ r.focus_losses }}</td>
+      <td class="num {{ 'attn' if r.device_events }}">{{ r.device_events }} / {{ r.ip_changes }}</td>
+      <td class="small">{% set sig = [] %}{% if r.paused %}{% set _ = sig.append('paused') %}{% endif %}{% if r.rapid %}{% set _ = sig.append('rapid finish') %}{% endif %}{% if r.similar %}{% set _ = sig.append('matching wrong answers') %}{% endif %}{% if r.blocked %}{% set _ = sig.append(r.blocked ~ ' blocked action' ~ ('s' if r.blocked != 1 else '')) %}{% endif %}<span class="{{ 'attn' if r.paused or r.rapid or r.similar }}">{{ sig|join(', ') or '—' }}</span></td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+{% endif %}
+{% endblock %}

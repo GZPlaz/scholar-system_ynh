@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% from "_macros.html" import crumbs with context %}
+{% block title %}PIN slips, {{ course.code }}{% endblock %}
+{% block content %}
+<div class="no-print">
+{{ crumbs([('Courses', url_for('courses.index')), (course.code, url_for('courses.roster', course_id=course.id)), ('PIN slips', None)]) }}
+<div class="page-head"><div><h1>PIN slips</h1><p class="facts"><span>{{ slips|length }} new PIN{{ 's' if slips|length != 1 }}</span><span>Made {{ made_at|dt }}</span></p></div>
+  <div class="actions"><button type="button" class="btn btn-primary" data-print>Print slips</button><a class="btn" href="{{ url_for('courses.roster', course_id=course.id) }}">Back to the roster</a></div></div>
+<div class="flash flash-info">These PINs are shown only now. Print or copy them before leaving this page; after that, the only way to recover a PIN is to make a new one.</div>
+</div>
+<div class="pin-slips">
+  {% for s in slips %}
+  <div class="pin-slip">
+    <p class="small">{{ institution_name }}, Scholar test portal</p>
+    <p class="who"><strong>{{ s.student.display_name }}</strong></p>
+    <dl><dt>Student ID</dt><dd>{{ s.student.student_number or 'none: ask your teacher' }}</dd><dt>PIN</dt><dd class="pin">{{ s.pin }}</dd></dl>
+    <p class="small">Go to {{ url_for('portal.enter', _external=True) }}, enter the test code your teacher gives you, your student ID, then this PIN. Keep it to yourself.</p>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

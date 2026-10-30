@@ -432,3 +432,79 @@ textarea.answer-input { min-height: 10rem; }
 .scan-answers tr.flag-row td { background: var(--redpen-tint); }
 .scan-crop { position: relative; overflow: hidden; border: 1px solid var(--rule-strong); margin-bottom: 6px; background: var(--paper); }
 .scan-crop img { position: absolute; max-width: none; }
+
+/* ---------------------------------------------------------------- test portal */
+.code-input { font-family: var(--mono); font-size: 1.2rem; letter-spacing: 0.08em; text-transform: uppercase; }
+input[type=password].code-input { text-transform: none; }
+.signin .actions { display: grid; gap: var(--s2); }
+.rules { margin: 0; padding-left: 1.2em; }
+.rules li { margin-bottom: var(--s1); }
+.waiting { border-top-color: var(--dropout); }
+/* the student's name and ID faintly across the test: a photo of the screen says whose it is */
+.watermark { position: fixed; inset: -20vh -20vw; z-index: 0; pointer-events: none; user-select: none; display: flex; flex-wrap: wrap; gap: 64px 96px; align-content: flex-start; transform: rotate(-24deg); color: var(--graphite); opacity: 0.045; font: 600 1.05rem/1 var(--ui); white-space: nowrap; overflow: hidden; }
+main.take { position: relative; }
+main.take > form, main.take > .flash { position: relative; z-index: 1; }
+.lock-screen { position: fixed; inset: 0; z-index: 50; background: var(--paper); display: flex; align-items: center; justify-content: center; padding: var(--s5); text-align: center; }
+.lock-screen > div { max-width: 460px; }
+.lock-screen[hidden] { display: none; }
+#take-form.is-hidden { visibility: hidden; }
+body.no-print-test { -webkit-user-select: none; user-select: none; }
+body.no-print-test .answer-input { -webkit-user-select: text; user-select: text; }
+@media print {
+  body.no-print-test > * { display: none !important; }
+  body.no-print-test::after { content: "Printing is switched off for this test."; display: block; padding: 2cm; font: 600 14pt var(--ui); }
+}
+
+/* ---------------------------------------------------------------- proctoring */
+.proctor-head { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--s4); flex-wrap: wrap; margin-bottom: var(--s3); }
+.test-code { display: grid; gap: 2px; }
+.test-code .label { color: var(--dropout); font-weight: 650; font-size: .867rem; }
+.test-code b { font: 700 2.4rem/1.1 var(--mono); letter-spacing: 0.06em; }
+.facts .attn, td.attn { color: var(--redpen); font-weight: 650; }
+.row-actions { justify-content: flex-end; }
+.add-time input { width: 4.2em; padding: 3px 6px; }
+.timeline { list-style: none; margin: 0; padding: 0; }
+.timeline li { display: grid; grid-template-columns: 9rem 12rem 1fr; gap: var(--s3); padding: 6px 0; border-bottom: 1px solid var(--rule); font-size: .933rem; }
+.timeline li.attn { color: var(--redpen); }
+.pin-slips { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 0; border-top: 1px dashed var(--rule-strong); border-left: 1px dashed var(--rule-strong); }
+.pin-slip { padding: var(--s4); border-right: 1px dashed var(--rule-strong); border-bottom: 1px dashed var(--rule-strong); break-inside: avoid; }
+.pin-slip p { margin: 0 0 var(--s2); }
+.pin-slip .who { font-size: 1.1rem; }
+.pin-slip dl { display: grid; grid-template-columns: auto 1fr; gap: 2px var(--s3); margin: 0 0 var(--s2); }
+.pin-slip dt { color: var(--dropout); font-weight: 650; font-size: .867rem; }
+.pin-slip dd { margin: 0; font-family: var(--mono); }
+.pin-slip dd.pin { font-size: 1.4rem; font-weight: 700; letter-spacing: 0.12em; }
+@media print { .pin-slips { grid-template-columns: repeat(2, 1fr); } }
+
+/* ---------------------------------------------------------------- charts (analytics) */
+:root { --chart-mastered: #4f8a2b; --chart-approaching: #c99a06; --chart-notyet: #a8231a; }
+.chart { width: 100%; height: auto; display: block; overflow: visible; font-family: var(--ui); }
+.chart .grid { stroke: var(--rule); stroke-width: 1; }
+.chart .axis { stroke: var(--dropout); stroke-width: 1.5; }
+.chart .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.chart .axis-label { fill: var(--dropout); font-size: 12px; font-weight: 650; }
+.chart .guide { stroke: var(--dropout); stroke-width: 1; stroke-dasharray: 4 4; }
+.chart .guide-label { fill: var(--dropout); font-size: 11px; }
+.chart .bar { fill: var(--graphite); }
+.chart .hit { fill: transparent; }
+.chart .mark:hover .bar { fill: var(--graphite-hover); }
+.chart .dot { fill: var(--graphite); stroke: var(--paper); stroke-width: 2; }
+.chart .mark.flagged .dot { fill: var(--redpen); }
+.chart .mark:hover .dot { r: 7; }
+.chart .dot-label { fill: var(--graphite); font-size: 11px; font-weight: 650; }
+.chart-legend { display: flex; flex-wrap: wrap; gap: 4px var(--s3); align-items: center; font-size: .867rem; color: var(--muted); margin-bottom: var(--s2); }
+.chart-legend .key { display: inline-block; width: 10px; height: 10px; margin-right: -6px; }
+.k-mastered, .s-mastered { background: var(--chart-mastered); }
+.k-approaching, .s-approaching { background: var(--chart-approaching); }
+.k-not-yet, .s-not-yet { background: var(--chart-notyet); }
+.mastery-bars { display: grid; gap: 6px; }
+.mrow { display: grid; grid-template-columns: 8rem minmax(0, 1fr) 3.5rem; gap: var(--s3); align-items: center; }
+.mrow .code { color: var(--dropout); font-weight: 650; font-size: .867rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mbar { display: flex; gap: 2px; height: 22px; }
+.mbar .seg { flex: 1 1 0; min-width: 18px; color: var(--paper); font-size: .8rem; font-weight: 650; display: flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums; }
+.mbar .s-approaching { color: var(--graphite); }
+.mbar .s-none { background: var(--none); color: var(--muted); font-weight: 400; }
+.grid-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--s5) var(--s6); }
+.stat-line { display: flex; flex-wrap: wrap; gap: 4px var(--s5); margin: 0 0 var(--s3); font-size: .933rem; }
+.stat-line b { font-variant-numeric: tabular-nums; }
+.chart-title { font-size: 1rem; font-weight: 650; margin: 0 0 var(--s2); }

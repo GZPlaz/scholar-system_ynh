@@ -119,106 +119,13 @@ def test_every_staff_page_renders(app):
             f"/assessments/{assessment.id}/paper", f"/assessments/{assessment.id}/paper/{student.id}",
             f"/questions/{question.id}", f"/questions/{question.id}/edit",
             f"/admin/users/{student.id}/edit",
+            f"/assessments/{assessment.id}/monitor", f"/assessments/{assessment.id}/monitor?fragment=1",
+            f"/assessments/{assessment.id}/insights", f"/assessments/{assessment.id}/insights?format=csv",
+            "/admin/integrations",
         ]
     for page in pages:
         r = client.get(page)
         assert r.status_code == 200, (page, r.status_code, r.data[:500])
-
-
-def test_students_cannot_reach_staff_pages(app):
-    client = app.test_client()
-    login(client, "demo.student8", "student123")  # the one student without an attempt
-    for page in ["/admin/users", "/questions/", "/standards/", "/courses/new"]:
-        assert client.get(page).status_code == 403, page
-    with app.app_context():
-        assessment = Assessment.query.filter_by(title="Unit 1 Check-in").one()
-        other = next(a for a in assessment.attempts)
-    assert client.get(f"/assessments/{assessment.id}/results").status_code == 403
-    assert client.get(f"/attempt/{other.id}").status_code == 403
-    assert client.get("/my/progress").status_code == 200
-
-
-def test_take_assessment_online_end_to_end(app):
-    client = app.test_client()
-    login(client, "demo.student8", "student123")
-    with app.app_context():
-        assessment = Assessment.query.filter_by(title="Unit 1 Check-in").one()
-        assessment.time_limit_minutes = 30
-        db.session.commit()
-        aid = assessment.id
-    r = client.get(f"/take/{aid}")
-    assert b"Begin assessment" in r.data
-    r = client.post(f"/take/{aid}")
-    assert r.status_code == 302
-    attempt_url = r.headers["Location"]
-    attempt_id = int(re.search(r"/attempt/(\d+)", attempt_url).group(1))
-    r = client.get(attempt_url)
-    assert b'id="timer"' in r.data
-
-    with app.app_context():
-        attempt = db.session.get(Attempt, attempt_id)
-        form = {}
-        for item in attempt.assessment.items:
-            q = item.question
-            form[f"present_{item.id}"] = "1"
-            if q.qtype in ("mc", "tf"):
-                form[f"q_{item.id}"] = str(q.correct_choices[0].id)
-            elif q.qtype == "ms":
-                form[f"q_{item.id}"] = [str(c.id) for c in q.correct_choices]
-            elif q.qtype == "short":
-                form[f"q_{item.id}"] = "  ZERO "
-            elif q.qtype == "numeric":
-                form[f"q_{item.id}"] = "5.0"
-            else:
-                form[f"q_{item.id}"] = "Because composition."
-    # autosave then submit
-    r = client.post(f"/attempt/{attempt_id}/save", data=form)
-    assert r.json["ok"] is True and r.json["remaining"] > 0
-    r = client.post(f"/attempt/{attempt_id}/submit", data=form, follow_redirects=True)
-    assert b"submitted" in r.data
-    with app.app_context():
-        attempt = db.session.get(Attempt, attempt_id)
-        assert attempt.status == "submitted"
-        assert attempt.needs_grading  # the essay
-        assert attempt.score == 9.0 and attempt.max_score == 13.0
-    # no more saving after submission
-    r = client.post(f"/attempt/{attempt_id}/save", data=form)
-    assert r.status_code == 409
-
-
-def test_deadline_auto_submits(app):
-    client = app.test_client()
-    login(client, "demo.student8", "student123")
-    with app.app_context():
-        assessment = Assessment.query.filter_by(title="Unit 1 Check-in").one()
-        aid = assessment.id
-    r = client.post(f"/take/{aid}")
-    attempt_id = int(re.search(r"/attempt/(\d+)", r.headers["Location"]).group(1))
-    with app.app_context():
-        attempt = db.session.get(Attempt, attempt_id)
-        attempt.deadline = utcnow() - timedelta(minutes=5)
-        db.session.commit()
-    r = client.post(f"/attempt/{attempt_id}/save", data={})
-    assert r.status_code == 409
-    with app.app_context():
-        assert db.session.get(Attempt, attempt_id).status == "submitted"
-
-
-def test_access_code_and_attempt_limit(app):
-    client = app.test_client()
-    login(client, "demo.student1", "student123")  # already used 1 of 2 attempts in the demo
-    with app.app_context():
-        assessment = Assessment.query.filter_by(title="Unit 1 Check-in").one()
-        assessment.access_code = "ROOM42"
-        db.session.commit()
-        aid = assessment.id
-    r = client.post(f"/take/{aid}", data={"access_code": "nope"}, follow_redirects=True)
-    assert b"access code is incorrect" in r.data
-    r = client.post(f"/take/{aid}", data={"access_code": "ROOM42"})
-    attempt_id = int(re.search(r"/attempt/(\d+)", r.headers["Location"]).group(1))
-    client.post(f"/attempt/{attempt_id}/submit", data={})
-    r = client.get(f"/take/{aid}")
-    assert b"used all of your attempts" in r.data
 
 
 def test_manual_grading_and_regrade(app):
@@ -287,13 +194,15 @@ def test_csv_imports(app):
     assert b"4 question(s) imported" in r.data and b"unknown type" in r.data
     csv_users = "username,full_name,role,student_id,course\nnew.kid,New Kid,student,MA9,DEMO101\nnew.prof,New Prof,instructor,,DEMO101\n"
     r = client.post("/admin/users/import", data={"csv_text": csv_users})
-    assert r.mimetype == "text/csv" and b"new.kid" in r.data
+    # only the instructor gets a generated password; the student is a test taker without one
+    assert r.mimetype == "text/csv" and b"new.prof" in r.data and b"new.kid" not in r.data
     with app.app_context():
         course = Course.query.filter_by(code="DEMO101").one()
         assert any(s.username == "new.kid" for s in course.students)
         assert any(i.username == "new.prof" for i in course.instructors)
         kid = User.query.filter_by(username="new.kid").one()
-        assert kid.must_change_password
+        assert kid.password_hash is None and kid.auth_source == "portal" and kid.student_number == "MA9"
+        assert User.query.filter_by(username="new.prof").one().must_change_password
 
 
 def test_paper_entry_and_import(app):
@@ -407,13 +316,30 @@ def test_ldap_login_provisions_yunohost_user(app, monkeypatch):
     client = app.test_client()
     r = login(client, "alice", "wrong")
     assert b"Invalid username or password" in r.data
+    # unknown YunoHost users get no account unless the administrator allows it...
+    r = login(client, "alice", "s3cret-pass")
+    assert r.status_code == 403 and b"not registered in Scholar" in r.data
+    # ...and then only as instructors: students never have staff-site accounts
+    with app.app_context():
+        from scholar.utils import set_setting
+
+        set_setting("ldap_autoprovision", "1")
+        db.session.commit()
     r = login(client, "alice", "s3cret-pass")
     assert b"Welcome, Alice Ynh" in r.data
     with app.app_context():
         alice = User.query.filter_by(username="alice").one()
-        assert alice.auth_source == "ldap" and alice.role == "student" and alice.email == "alice@mindaccel.org"
+        assert alice.auth_source == "ldap" and alice.role == "instructor" and alice.email == "alice@mindaccel.org"
         assert alice.password_hash is None
-    # a local account with the same name can't be hijacked through LDAP, and vice versa
     client.post("/logout")
+    # a student with a valid YunoHost password is sent to the test portal, not signed in
+    with app.app_context():
+        alice = User.query.filter_by(username="alice").one()
+        alice.role = "student"
+        db.session.commit()
+    r = login(client, "alice", "s3cret-pass")
+    assert r.status_code == 403 and b"test portal" in r.data
+    assert client.get("/").status_code == 302
+    # a local account with the same name can't be hijacked through LDAP, and vice versa
     r = login(client, "demo.student1", "s3cret-pass")
     assert b"Invalid username or password" in r.data

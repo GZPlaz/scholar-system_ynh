@@ -1,0 +1,42 @@
+{% from "_macros.html" import post_button with context %}
+{%- macro clock(seconds) -%}{% if seconds is none %}—{% else %}{{ '%d:%02d'|format(seconds // 60, seconds % 60) }}{% endif %}{%- endmacro -%}
+{%- macro ago(seconds) -%}{% if seconds is none %}—{% elif seconds < 60 %}just now{% elif seconds < 3600 %}{{ seconds // 60 }} min ago{% else %}{{ seconds // 3600 }} h ago{% endif %}{%- endmacro -%}
+<tbody id="monitor-rows" data-tally="{% for k, v in tally.items() %}{{ k }}={{ v }};{% endfor %}">
+{% for r in rows %}{% set u = r.user %}{% set base = url_for('proctor.student_action', assessment_id=assessment.id, user_id=u.id, action='ACTION') %}
+<tr class="{{ 'row-attn' if r.state in ('waiting', 'paused') }}">
+  <td>{{ u.display_name }}<div class="small muted">{% if r.no_id %}<span class="badge badge-red">No student ID: can't sign in</span>{% else %}ID {{ u.student_number }}{% endif %}{% if r.no_pin %} <span class="badge badge-red">No PIN</span>{% endif %}{% if not r.enrolled %} <span class="badge">Not enrolled</span>{% endif %}</div></td>
+  <td>
+    {% if r.state == 'writing' %}<span class="badge badge-green">Writing</span>
+    {% elif r.state == 'paused' %}<span class="badge badge-red">Paused</span><div class="small">{{ r.live.lock_reason }}</div>
+    {% elif r.state == 'waiting' %}<span class="badge badge-amber">Waiting to be let in</span>
+    {% elif r.state == 'signed in' %}<span class="badge badge-blue">Signed in</span>
+    {% elif r.state == 'submitted' %}<span class="badge">Submitted</span>
+    {% else %}<span class="badge">Not started</span>{% endif %}
+  </td>
+  <td class="num">{% if r.live %}{{ r.answered }} / {{ r.total }}{% elif r.counted %}<a href="{{ url_for('assessments.attempt_detail', assessment_id=assessment.id, attempt_id=r.counted.id) }}">{{ r.counted.percent|pct }}</a>{% else %}—{% endif %}</td>
+  <td class="num">{{ clock(r.remaining) if r.live else '—' }}{% if r.live and r.live.extra_minutes %}<div class="small muted">+{{ r.live.extra_minutes }} min</div>{% endif %}</td>
+  <td class="num {{ 'attn' if r.focus_losses }}">{{ r.focus_losses if r.live else '—' }}</td>
+  <td class="num {{ 'attn' if r.device_changes or r.ip_changes }}">{% if r.live %}{{ r.device_changes }} / {{ r.ip_changes }}{% else %}—{% endif %}</td>
+  <td class="small">{{ ago(r.idle) }}{% if r.session %}<div class="muted">{{ r.session.ip }}</div>{% endif %}</td>
+  <td class="right">
+    <div class="actions row-actions">
+    {% if r.state == 'waiting' %}{{ post_button(base|replace('ACTION', 'admit'), 'Let in', cls='btn btn-sm btn-primary') }}{% endif %}
+    {% if r.state == 'writing' %}{{ post_button(base|replace('ACTION', 'lock'), 'Pause', title='Pause ' ~ u.display_name ~ "'s test") }}{% endif %}
+    {% if r.state == 'paused' %}{{ post_button(base|replace('ACTION', 'unlock'), 'Let continue', cls='btn btn-sm btn-primary') }}{% endif %}
+    {% if r.live %}
+      <form method="post" action="{{ base|replace('ACTION', 'add_time') }}" class="inline add-time">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="number" name="minutes" min="1" max="600" value="5" aria-label="Minutes to add for {{ u.display_name }}">
+        <button type="submit" class="btn btn-sm">Add min</button>
+      </form>
+      {{ post_button(base|replace('ACTION', 'submit'), 'Submit now', cls='btn btn-sm btn-danger', confirm='Submit ' ~ u.display_name ~ "'s test now with their saved answers?") }}
+    {% endif %}
+    {% if r.session %}{{ post_button(base|replace('ACTION', 'reset_device'), 'Sign out', confirm='Sign ' ~ u.display_name ~ ' out? They can sign in again on any device.', title='Sign ' ~ u.display_name ~ ' out so they can use another device') }}{% endif %}
+    {% if r.live %}<a class="btn btn-sm" href="{{ url_for('assessments.attempt_detail', assessment_id=assessment.id, attempt_id=r.live.id) }}#timeline">Timeline</a>{% endif %}
+    </div>
+  </td>
+</tr>
+{% else %}
+<tr><td colspan="8" class="empty">No students are enrolled in {{ assessment.course.code }}.</td></tr>
+{% endfor %}
+</tbody>

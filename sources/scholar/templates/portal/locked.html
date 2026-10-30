@@ -1,0 +1,11 @@
+{% extends "portal/base.html" %}
+{% block title %}Test paused{% endblock %}
+{% block leave %}{% endblock %}
+{% block content %}
+<div class="signin" aria-live="polite">
+  <p class="institution">{{ assessment.title }}</p>
+  <h1>Your test is paused</h1>
+  <p>{{ attempt.lock_reason or 'Your proctor paused your test.' }}. Raise your hand: your proctor can let you continue. Your saved answers are safe.</p>
+  <p class="small muted">The timer keeps running while the test is paused. This page checks again every few seconds.</p>
+</div>
+{% endblock %}

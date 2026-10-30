@@ -96,7 +96,9 @@
 </div>
 <nav class="tabs" aria-label="Assessment">
   <a href="{{ url_for('assessments.detail', assessment_id=assessment.id) }}" class="{{ 'active' if active == 'builder' }}">Questions</a>
+  <a href="{{ url_for('proctor.monitor', assessment_id=assessment.id) }}" class="{{ 'active' if active == 'monitor' }}">Proctor</a>
   <a href="{{ url_for('assessments.results', assessment_id=assessment.id) }}" class="{{ 'active' if active == 'results' }}">Results</a>
+  <a href="{{ url_for('assessments.insights', assessment_id=assessment.id) }}" class="{{ 'active' if active == 'insights' }}">Analytics</a>
   <a href="{{ url_for('assessments.analysis', assessment_id=assessment.id) }}" class="{{ 'active' if active == 'analysis' }}">Item analysis</a>
   <a href="{{ url_for('assessments.grading', assessment_id=assessment.id) }}" class="{{ 'active' if active == 'grading' }}">Grading{% if to_grade %}<span class="count" title="{{ to_grade }} attempt(s) awaiting grading">{{ to_grade }}</span>{% endif %}</a>
   <a href="{{ url_for('assessments.paper', assessment_id=assessment.id) }}" class="{{ 'active' if active == 'paper' }}">Paper and printing</a>

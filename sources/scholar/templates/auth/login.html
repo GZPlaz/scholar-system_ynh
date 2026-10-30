@@ -4,7 +4,10 @@
 <div class="signin">
   <p class="institution">{{ institution_name }}</p>
   <h1>Sign in to Scholar</h1>
-  <p class="muted">Tests, results and standards progress for your courses.</p>
+  <p class="muted">For instructors and administrators: build tests, proctor them, grade and read the results.</p>
+  {% if student_redirect %}
+  <div class="flash flash-info">Students don't sign in here. To take a test, open the <a href="{{ url_for('portal.enter') }}">test portal</a> and enter the test code and your student ID.</div>
+  {% endif %}
   {% if login_message %}<div class="flash flash-info">{{ login_message }}</div>{% endif %}
   <form method="post" action="{{ url_for('auth.login') }}" class="mt">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -26,5 +29,9 @@
     <a class="btn" href="{{ url_for('auth.login_sso') }}">Continue with the YunoHost portal</a>
   </div>
   {% endif %}
+  <div class="alt">
+    <p class="small muted">Taking a test?</p>
+    <a class="btn" href="{{ url_for('portal.enter') }}">Go to the test portal</a>
+  </div>
 </div>
 {% endblock %}

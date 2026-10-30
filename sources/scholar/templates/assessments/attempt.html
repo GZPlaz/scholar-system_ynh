@@ -30,4 +30,17 @@
   </div>
   {% endif %}
 </form>
+{% if attempt.source == 'online' %}
+<section class="section mt" id="timeline">
+  <div class="section-head"><h2>Integrity timeline</h2>
+    <span class="small muted">Left the test page {{ attempt.focus_losses }} time{{ 's' if attempt.focus_losses != 1 }}{% if attempt.extra_minutes %}, {{ attempt.extra_minutes }} minute(s) added{% endif %}{% if attempt.ip %}, last network {{ attempt.ip }}{% endif %}</span></div>
+  {% if attempt.events %}
+  <ul class="timeline">
+    {% for e in attempt.events %}
+    <li class="{{ 'attn' if e.kind in EVENT_ATTENTION }}"><span class="num">{{ e.created_at|dt('%b %d %H:%M:%S') }}</span><span>{{ EVENT_LABELS.get(e.kind, e.kind) }}</span><span class="small muted">{{ e.detail }}{% if e.ip %} ({{ e.ip }}){% endif %}</span></li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="muted">Nothing recorded.</p>{% endif %}
+</section>
+{% endif %}
 {% endblock %}

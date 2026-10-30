@@ -165,10 +165,13 @@ def start_attempt(assessment, user, source="online", entered_by=None):
 
 
 def effective_deadline(attempt):
+    """When an online attempt ends: its time limit or the closing time, plus any time a proctor added."""
     deadline = attempt.deadline
     closes = attempt.assessment.closes_at
     if attempt.source == "online" and closes and (deadline is None or closes < deadline):
         deadline = closes
+    if deadline is not None and attempt.extra_minutes:
+        deadline += timedelta(minutes=attempt.extra_minutes)
     return deadline
 
 

@@ -21,10 +21,10 @@
     <td><a href="{{ url_for('admin.edit_user', user_id=u.id) }}">{{ u.username }}</a>{% if not u.active %} <span class="badge badge-red">inactive</span>{% endif %}</td>
     <td>{{ u.full_name }}</td><td class="small">{{ u.email }}</td><td>{{ u.student_number }}</td>
     <td>{{ ROLES[u.role] }}</td>
-    <td>{{ 'YunoHost' if u.auth_source == 'ldap' else 'Local' }}</td>
+    <td>{{ 'Test portal only' if u.role == 'student' else ('YunoHost' if u.auth_source == 'ldap' else 'Local') }}</td>
     <td class="small">{{ u.last_login_at|dt }}</td>
     <td class="right nowrap">
-      {% if u.auth_source == 'local' %}{{ post_button(url_for('admin.reset_password', user_id=u.id), 'Reset password', confirm='Generate a new temporary password for ' ~ u.username ~ '?') }}{% endif %}
+      {% if u.auth_source == 'local' and u.role != 'student' %}{{ post_button(url_for('admin.reset_password', user_id=u.id), 'Reset password', confirm='Generate a new temporary password for ' ~ u.username ~ '?') }}{% endif %}
       {% if u.id != current_user.id %}{{ post_button(url_for('admin.delete_user', user_id=u.id), 'Delete', cls='btn btn-sm btn-danger', confirm='Delete ' ~ u.username ~ '? Accounts with results are deactivated instead.') }}{% endif %}
     </td>
   </tr>

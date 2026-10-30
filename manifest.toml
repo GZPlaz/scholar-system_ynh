@@ -7,7 +7,7 @@ name = "Scholar System"
 description.en = "Standards-based assessment, online testing and mastery tracking for universities"
 description.fr = "Évaluations par compétences, examens en ligne et suivi de la maîtrise pour les universités"
 
-version = "1.2.0~ynh1"
+version = "1.3.0~ynh1"
 
 maintainers = []
 
@@ -35,7 +35,7 @@ ram.runtime = "350M"
     default = "/scholar"
 
     [install.init_main_permission]
-    help.en = "Choose 'visitors' if some students only have local Scholar accounts (created by an administrator) and no YunoHost account. Choose 'all_users' to restrict the app to YunoHost users."
+    help.en = "Who can reach the staff site (instructors and administrators). Choose 'all_users' if every instructor has a YunoHost account; keep 'visitors' if some sign in with local Scholar accounts. Students never need this: the test portal (/test) is always open to them."
     type = "group"
     default = "visitors"
 
@@ -66,6 +66,15 @@ ram.runtime = "350M"
     api.auth_header = false
     api.show_tile = false
     api.protected = true
+
+    # The test portal: students have no YunoHost account (nor a Scholar one), so it is always
+    # public; it has its own sign-in (test code + student ID, optional PIN) and session.
+    test.url = "/test"
+    test.additional_urls = ["/static"]
+    test.allowed = "visitors"
+    test.auth_header = false
+    test.show_tile = false
+    test.protected = true
 
     [resources.ports]
     main.default = 8095
