@@ -48,10 +48,17 @@ What the browser reports (full screen, leaving the page, copy/paste attempts) is
 
 Scanning uses OpenCV, which installs from prebuilt packages on x86_64 and 64-bit ARM servers. On 32-bit ARM (armhf) it is skipped: the app works normally and paper answers are typed in instead.
 
+**Scanning with the camera.** On a course's *Paper and printing → Scan answer sheets* page choose **Scan with the camera** (the browser asks for camera access once; it needs the HTTPS address, which a YunoHost site has). Hold each sheet in front of the camera: Scholar outlines it in green, takes the photo as soon as it is steady, and shows who the sheet belongs to and how many answers it read. Slide the next sheet in. A checklist shows how many students are done and who is left. Clear sheets are recorded by themselves (untick the box to review them first); sheets with something doubtful say how many answers to check, and **Check now** opens just those questions as pictures with Scholar's best guess already selected, so you tap the bubble that is filled in. A second photo of a page that is already recorded with the same answers changes nothing.
+
+**Choosing photos instead.** *Choose photos* uploads files (several at once; the same reading and options apply), for example photos taken earlier or scans from a copier.
+
+How well it reads: the printed rings are green and the reader looks at the brightest colour channel, so only pencil, pen and the black squares count. It measures each bubble against an empty bubble on the same sheet and against how firmly *that* student marks, so light pencil is read as confidently as dark; it corrects for curled paper; and it never drops a faint mark quietly: a light mark, a half-erased answer, or two filled bubbles is shown for a look with a guess. Questions read as blank are listed in the result, so a missed mark can't slip through unnoticed.
+
 Tips for instructors:
 
 - Print answer sheets at 100% (actual size) on A4 or US Letter. Printing several times is fine; each student keeps the same sheet code.
-- Photos can be taken at an angle and either way up, but all four black corner squares must be in the picture.
+- Good, even light and all four black corner squares in the picture; any angle and either way up is fine. Fill the camera view with the sheet: a photo where the sheet is too small (under about 2.8 pixels per millimetre) is refused, and below 3.3 the result carries a "move closer" note. If a corner is hidden, the message says which one.
+- Students should fill bubbles firmly with a pencil or pen; ticks and dots are still found but are shown for a look.
 - A photo is stored after it is straightened (about 200 KB), so you can always see what a recorded answer was based on.
 - Uploads are limited to 25 MB per photo; the scan page shrinks photos in the browser before sending them.
 

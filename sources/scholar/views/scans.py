@@ -13,8 +13,8 @@ from .assessments import get_assessment, record_paper_attempt
 bp = Blueprint("scans", __name__, url_prefix="/assessments")
 
 FLAG_TEXT = {
-    "multiple": "More than one bubble filled",
-    "faint": "Light or partly erased mark",
+    "multiple": "More than one bubble filled: pick one",
+    "faint": "Light or unsure: is Scholar's guess right?",
     "write": "Written answer: type it in",
 }
 
@@ -68,7 +68,7 @@ def _thumbnail(data):
         return None
 
 
-def process_photo(assessment, data, filename=""):
+def process_photo(assessment, data, filename="", auto=False):
     scan = SheetScan(assessment_id=assessment.id, uploaded_by_id=current_user.id, filename=(filename or "")[:255])
     db.session.add(scan)
     try:
@@ -91,21 +91,48 @@ def process_photo(assessment, data, filename=""):
                 "page": layout["page"],
                 "pages": layout["pages"],
                 "removed": missing,
+                "quality": read.quality,
             }
         )
         flagged = any(v["flag"] for v in items.values())
         scan.status = "ready" if sheet.user_id and not flagged and not missing else "review"
+        db.session.flush()
         # an older, unrecorded photo of the same page is superseded by this one
         for older in SheetScan.query.filter(
             SheetScan.sheet_id == sheet.id, SheetScan.status.in_(("ready", "review")), SheetScan.id != scan.id
         ):
-            if older is not scan:
-                older.status = "replaced"
+            older.status = "replaced"
+        if auto and scan.status == "ready":
+            _auto_record(scan)
     except omr.OMRError as exc:
         scan.status = "failed"
         scan.error = str(exc)
         scan.image = _thumbnail(data)
     return scan
+
+
+def _auto_record(scan):
+    """Record a cleanly read sheet at once. A photo of a page that is already recorded with the same answers records nothing twice."""
+    user = scan.sheet.user
+    if user is None or not scan.assessment.course.has_student(user):
+        scan.status = "review"
+        return
+    values = scan_values(scan)
+    earlier = (
+        SheetScan.query.filter(SheetScan.sheet_id == scan.sheet_id, SheetScan.status == "recorded", SheetScan.id != scan.id)
+        .order_by(SheetScan.id.desc())
+        .first()
+    )
+    if earlier is not None and scan_values(earlier) == values:
+        scan.status = "replaced"
+        scan.error = "duplicate"
+        return
+    try:
+        record_scan(scan, user, values)
+    except ValueError as exc:
+        db.session.rollback()
+        scan.status = "review"
+        scan.error = str(exc)
 
 
 def scan_values(scan, overrides=None):
@@ -141,17 +168,52 @@ def get_scan(assessment, scan_id):
 
 def _scan_json(scan):
     result = scan.get_result()
+    quality = result.get("quality", {})
     return {
         "id": scan.id,
         "status": scan.status,
+        "duplicate": scan.error == "duplicate",
         "student": scan.user.display_name if scan.user else None,
         "page": result.get("page"),
         "pages": result.get("pages"),
         "flags": scan.flag_count,
-        "error": scan.error,
+        "answered": quality.get("answered"),
+        "rows": quality.get("rows"),
+        "blank": quality.get("blank", []),
+        "light": bool(quality.get("mark_level") is not None and quality["mark_level"] < 0.3),
+        "low_resolution": bool(quality.get("px_per_mm") is not None and quality["px_per_mm"] < omr.LOW_PX_PER_MM),
+        "error": scan.error if scan.status != "replaced" else "",
         "filename": scan.filename,
         "url": url_for("scans.review", assessment_id=scan.assessment_id, scan_id=scan.id),
+        "fix_url": url_for("scans.fix", assessment_id=scan.assessment_id, scan_id=scan.id),
     }
+
+
+def class_progress(assessment):
+    """Who has been scanned? Every student's printed pages against the photos taken so far."""
+    pages = len(omr.plan_pages(assessment)) if assessment.items else 1
+    covered = {}
+    for scan in assessment.scans:
+        if scan.status in ("failed", "replaced") or scan.user_id is None or scan.sheet is None:
+            continue
+        covered.setdefault(scan.user_id, {})[scan.sheet.page] = scan.status
+    rows = []
+    for student in assessment.course.students:
+        mine = covered.get(student.id, {})
+        if len(mine) >= pages:
+            state = "recorded" if all(v == "recorded" for v in mine.values()) else "scanned"
+        elif mine:
+            state = "partial"
+        else:
+            state = "none"
+        rows.append({"user": student, "state": state, "pages": len(mine)})
+    done = sum(1 for r in rows if r["state"] in ("recorded", "scanned"))
+    return {"rows": rows, "done": done, "total": len(rows), "pages": pages}
+
+
+def progress_json(assessment):
+    p = class_progress(assessment)
+    return {"done": p["done"], "total": p["total"], "missing": [r["user"].display_name for r in p["rows"] if r["state"] != "recorded" and r["state"] != "scanned"]}
 
 
 @bp.route("/<int:assessment_id>/scans")
@@ -161,7 +223,13 @@ def index(assessment_id):
     scans = sorted(assessment.scans, key=lambda s: -s.id)
     counts = {k: sum(1 for s in scans if s.status == k) for k in ("ready", "review", "recorded", "failed", "replaced")}
     return render_template(
-        "assessments/scans.html", assessment=assessment, scans=scans, counts=counts, available=omr.available(), flag_text=FLAG_TEXT
+        "assessments/scans.html",
+        assessment=assessment,
+        scans=scans,
+        counts=counts,
+        available=omr.available(),
+        flag_text=FLAG_TEXT,
+        progress=class_progress(assessment),
     )
 
 
@@ -175,10 +243,11 @@ def upload(assessment_id):
             return jsonify({"error": "No photo received."}), 400
         flash("Choose or take at least one photo.", "error")
         return redirect(url_for("scans.index", assessment_id=assessment.id))
-    scans = [process_photo(assessment, f.read(), f.filename) for f in files]
+    auto = request.form.get("auto") in ("1", "true", "on")
+    scans = [process_photo(assessment, f.read(), f.filename, auto=auto) for f in files]
     db.session.commit()
     if request.accept_mimetypes.best == "application/json":
-        return jsonify({"scans": [_scan_json(s) for s in scans]})
+        return jsonify({"scans": [_scan_json(s) for s in scans], "progress": progress_json(assessment)})
     ok = sum(1 for s in scans if s.status != "failed")
     flash(f"{ok} of {len(scans)} photo(s) read.", "success" if ok == len(scans) else "info")
     return redirect(url_for("scans.index", assessment_id=assessment.id))
@@ -194,25 +263,95 @@ def image(assessment_id, scan_id):
 
 
 def _overlay(scan):
-    """Positions (percent of the straightened image) of every bubble and write-in box, with what was read."""
+    """Positions (percent of the straightened image) of every marked or faint bubble, for the whole-sheet picture."""
     span_w = omr.FRAME_W + 2 * omr.MARGIN
     span_h = omr.FRAME_H + 2 * omr.MARGIN
     px = lambda v: round(100 * (v + omr.MARGIN) / span_w, 3)  # noqa: E731
     py = lambda v: round(100 * (v + omr.MARGIN) / span_h, 3)  # noqa: E731
-    marks, boxes = [], []
+    marks = []
     result = scan.get_result().get("items", {})
     for slot in scan.sheet.get_layout()["slots"]:
         read = result.get(str(slot["item"]), {})
-        if slot["kind"] == "choice":
-            for k, (x, y) in enumerate(slot["bubbles"]):
-                fill = (read.get("fills") or [0] * len(slot["bubbles"]))[k]
-                state = "marked" if fill >= omr.MARK_LEVEL else ("faint" if fill >= omr.FAINT_LEVEL else "")
-                if state:
-                    marks.append({"x": px(x), "y": py(y), "d": round(100 * omr.BUBBLE_D / span_w, 3), "state": state, "flag": bool(read.get("flag"))})
-        elif slot["kind"] == "write":
-            x, y, w, h = slot["box"]
-            boxes.append({"item": slot["item"], "x": x, "y": y, "w": w, "h": h})
-    return marks, boxes
+        if slot["kind"] != "choice":
+            continue
+        states = read.get("states") or [""] * len(slot["bubbles"])
+        for k, (x, y) in enumerate(slot["bubbles"]):
+            if states[k]:
+                marks.append({"x": px(x), "y": py(y), "d": round(100 * omr.BUBBLE_D / span_w, 3), "state": states[k], "flag": bool(read.get("flag"))})
+    return marks
+
+
+CROP_PX = 340  # width of one question's picture on screen
+
+
+def _crop(slot, pad=1.4):
+    """CSS offsets that show just one question's bubbles (or write-in box) out of the straightened photo."""
+    span_w = omr.FRAME_W + 2 * omr.MARGIN
+    if slot["kind"] == "choice":
+        left, right = slot["x"] + 1.0, slot["bubbles"][-1][0] + omr.BUBBLE_D / 2 + pad
+        top, height = slot["y"], omr.ROW_PITCH
+    else:
+        bx, by, bw, bh = slot["box"]
+        left, right, top, height = bx - pad, bx + bw + pad, by - 1.0, bh + 2.0
+    scale = CROP_PX / (right - left)
+    return {
+        "w": CROP_PX,
+        "h": round(height * scale),
+        "img_w": round(span_w * scale),
+        "left": round(-(left + omr.MARGIN) * scale),
+        "top": round(-(top + omr.MARGIN) * scale),
+        "scale": scale,
+        "x0": left,
+        "y0": top,
+    }
+
+
+def build_rows(scan, assessment):
+    """Every question of the page as one row: what was read, how sure, and a picture of it."""
+    layout = scan.sheet.get_layout()
+    result = scan.get_result().get("items", {})
+    items = {i.id: i for i in assessment.items}
+    rows = []
+    for slot in layout["slots"]:
+        read = result.get(str(slot["item"]), {})
+        item = items.get(slot["item"])
+        row = {"slot": slot, "item": item, "read": read, "flag": read.get("flag", ""), "value": read.get("value", ""), "crop": None, "bubbles": []}
+        if item is not None and slot["kind"] in ("choice", "write"):
+            row["crop"] = _crop(slot)
+        if item is not None and slot["kind"] == "choice":
+            crop, states = row["crop"], read.get("states") or [""] * len(slot["bubbles"])
+            for k, (bx, by) in enumerate(slot["bubbles"]):
+                size = omr.BUBBLE_D * crop["scale"]
+                row["bubbles"].append(
+                    {
+                        "label": slot["labels"][k],
+                        "left": round((bx - crop["x0"]) * crop["scale"] - size / 2),
+                        "top": round((by - crop["y0"]) * crop["scale"] - size / 2),
+                        "size": round(size),
+                        "state": states[k],
+                    }
+                )
+        rows.append(row)
+    return rows
+
+
+def submit_scan(assessment, scan, form):
+    """Record a scan with the answers in ``form``. Returns (ok, message, student)."""
+    user = db.session.get(User, parse_int(form.get("user_id"), 0))
+    if user is None or not assessment.course.has_student(user):
+        return False, "Choose which student this sheet belongs to.", None
+    try:
+        record_scan(scan, user, scan_values(scan, form))
+    except ValueError as exc:
+        db.session.rollback()
+        return False, f"Not recorded: {exc}", None
+    db.session.commit()
+    return True, f"Recorded page {scan.get_result().get('page')} for {user.display_name}.", user
+
+
+def _next_to_check(assessment, after_id=None):
+    waiting = [s for s in sorted(assessment.scans, key=lambda s: s.id) if s.status == "review" and s.id != after_id]
+    return waiting[0] if waiting else None
 
 
 @bp.route("/<int:assessment_id>/scans/<int:scan_id>", methods=["GET", "POST"])
@@ -220,58 +359,51 @@ def _overlay(scan):
 def review(assessment_id, scan_id):
     assessment = get_assessment(assessment_id)
     scan = get_scan(assessment, scan_id)
-    students = assessment.course.students
     if scan.status == "failed" or scan.sheet is None:
         return render_template("assessments/scan_failed.html", assessment=assessment, scan=scan)
     if request.method == "POST":
-        user = db.session.get(User, parse_int(request.form.get("user_id"), 0))
-        if user is None or not assessment.course.has_student(user):
-            flash("Choose which student this sheet belongs to.", "error")
-        else:
-            try:
-                record_scan(scan, user, scan_values(scan, request.form))
-            except ValueError as exc:
-                db.session.rollback()
-                flash(f"Not recorded: {exc}", "error")
-            else:
-                db.session.commit()
-                flash(f"Recorded page {scan.get_result().get('page')} for {user.display_name}.", "success")
-                nxt = next((s for s in sorted(assessment.scans, key=lambda s: s.id) if s.status == "review"), None)
-                if nxt is not None:
-                    return redirect(url_for("scans.review", assessment_id=assessment.id, scan_id=nxt.id))
-                return redirect(url_for("scans.index", assessment_id=assessment.id))
-    layout = scan.sheet.get_layout()
-    result = scan.get_result()
-    items = {i.id: i for i in assessment.items}
-    rows = []
-    for slot in layout["slots"]:
-        read = result.get("items", {}).get(str(slot["item"]), {})
-        rows.append({"slot": slot, "item": items.get(slot["item"]), "read": read})
-    marks, boxes = _overlay(scan)
-    span_w = omr.FRAME_W + 2 * omr.MARGIN
-    crop_w = 300  # px on screen
-    crops = {}
-    for b in boxes:
-        scale = crop_w / (b["w"] + 4)
-        crops[b["item"]] = {
-            "w": crop_w,
-            "h": round((b["h"] + 2) * scale),
-            "img_w": round(span_w * scale),
-            "left": round(-(b["x"] - 2 + omr.MARGIN) * scale),
-            "top": round(-(b["y"] - 1 + omr.MARGIN) * scale),
-        }
-    form_values = request.form if request.method == "POST" else None
+        ok, message, user = submit_scan(assessment, scan, request.form)
+        flash(message, "success" if ok else "error")
+        if ok:
+            nxt = _next_to_check(assessment)
+            if nxt is not None:
+                return redirect(url_for("scans.review", assessment_id=assessment.id, scan_id=nxt.id))
+            return redirect(url_for("scans.index", assessment_id=assessment.id))
+    rows = build_rows(scan, assessment)
     return render_template(
         "assessments/scan_review.html",
         assessment=assessment,
         scan=scan,
         rows=rows,
-        marks=marks,
-        crops=crops,
-        students=students,
-        result=result,
+        marks=_overlay(scan),
+        students=assessment.course.students,
+        result=scan.get_result(),
         flag_text=FLAG_TEXT,
-        form_values=form_values,
+        form_values=request.form if request.method == "POST" else None,
+    )
+
+
+@bp.route("/<int:assessment_id>/scans/<int:scan_id>/fix", methods=["GET", "POST"])
+@staff_required
+def fix(assessment_id, scan_id):
+    """The live scanner's quick fix: only the answers Scholar was unsure about, tapped on the photo."""
+    assessment = get_assessment(assessment_id)
+    scan = get_scan(assessment, scan_id)
+    if scan.status == "failed" or scan.sheet is None:
+        abort(404)
+    if request.method == "POST":
+        ok, message, user = submit_scan(assessment, scan, request.form)
+        return jsonify({"ok": ok, "message": message, "scan": _scan_json(scan), "progress": progress_json(assessment)}), (200 if ok else 400)
+    return render_template(
+        "assessments/_scan_fix.html",
+        assessment=assessment,
+        scan=scan,
+        rows=build_rows(scan, assessment),
+        students=assessment.course.students,
+        result=scan.get_result(),
+        flag_text=FLAG_TEXT,
+        form_values=None,
+        panel=True,
     )
 
 

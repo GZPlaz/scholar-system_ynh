@@ -1,0 +1,45 @@
+{# One question of a scanned page. Choice rows are answered by tapping the bubble in the picture
+   (or its letter below); the answer lives in one hidden input named q_<item> that the form posts. #}
+{% macro choice_letters(r) -%}
+{% set slot = r.slot %}
+<span class="fix-letters" role="group" aria-label="Answer to question {{ slot.n }}">
+  {% for lab in slot.labels %}<button type="button" class="fix-letter{{ ' on' if lab in r.value }}" data-label="{{ lab }}" aria-pressed="{{ 'true' if lab in r.value else 'false' }}">{{ lab }}</button>{% endfor %}
+  <button type="button" class="fix-none btn btn-sm" title="No answer">None</button>
+</span>
+{%- endmacro %}
+
+{% macro row(r, image_url, flag_text, crop=True, form_values=None) -%}
+{% set slot = r.slot %}{% set name = 'q_' ~ slot.item %}
+{% set val = form_values.get(name, r.value) if form_values else r.value %}
+{% if not r.item %}
+  <div class="fix-row muted small"><strong>{{ slot.n }}</strong> removed from the assessment</div>
+{% elif slot.kind == 'choice' %}
+  <div class="fix-row{{ ' flagged' if r.flag }}" data-multi="{{ 1 if slot.qtype == 'ms' else 0 }}" data-flagged="{{ 1 if r.flag else 0 }}">
+    <div class="fix-head"><strong class="fix-n">{{ slot.n }}</strong>{% if r.flag %}<span class="attn small">{{ flag_text[r.flag] }}</span>{% endif %}{% if r.flag %}<button type="button" class="fix-ok btn btn-sm">Looks right</button>{% endif %}</div>
+    {% if crop and r.crop %}
+    <div class="fix-crop" style="width: {{ r.crop.w }}px; height: {{ r.crop.h }}px">
+      <img src="{{ image_url }}" alt="The sheet at question {{ slot.n }}" style="width: {{ r.crop.img_w }}px; left: {{ r.crop.left }}px; top: {{ r.crop.top }}px" loading="lazy">
+      {% for b in r.bubbles %}<button type="button" class="fix-bubble{{ ' hint' if b.state }}{{ ' on' if b.label in val }}" data-label="{{ b.label }}" style="left: {{ b.left }}px; top: {{ b.top }}px; width: {{ b.size }}px; height: {{ b.size }}px" aria-label="Answer {{ b.label }}"></button>{% endfor %}
+    </div>
+    {% endif %}
+    {{ choice_letters({'slot': slot, 'value': val}) }}
+    <input type="hidden" name="{{ name }}" value="{{ val }}">
+  </div>
+{% elif slot.kind == 'write' %}
+  <div class="fix-row{{ ' flagged' if r.flag }}" data-flagged="{{ 1 if r.flag else 0 }}">
+    <div class="fix-head"><strong class="fix-n">{{ slot.n }}</strong>{% if r.flag %}<span class="attn small">{{ flag_text[r.flag] }}</span>{% endif %}</div>
+    {% if r.crop %}<div class="fix-crop" style="width: {{ r.crop.w }}px; height: {{ r.crop.h }}px"><img src="{{ image_url }}" alt="What was written for question {{ slot.n }}" style="width: {{ r.crop.img_w }}px; left: {{ r.crop.left }}px; top: {{ r.crop.top }}px" loading="lazy"></div>{% endif %}
+    <input type="text" name="{{ name }}" value="{{ val }}" aria-label="Type the answer to question {{ slot.n }}" style="max-width: 340px" placeholder="{{ 'type what is written' if r.flag else 'left blank' }}" autocomplete="off" data-write>
+  </div>
+{% else %}
+  <div class="fix-row">
+    <div class="fix-head"><strong class="fix-n">{{ slot.n }}</strong><span class="small muted">essay: points out of {{ r.item.effective_points|num }}</span></div>
+    <input type="number" class="points" step="any" min="0" max="{{ r.item.effective_points }}" name="{{ name }}" value="{{ val }}" placeholder="later" aria-label="Points for question {{ slot.n }}">
+  </div>
+{% endif %}
+{%- endmacro %}
+
+{# only carry the answer along, for a page the panel doesn't show #}
+{% macro carry(r, form_values=None) -%}
+{% if r.item %}<input type="hidden" name="q_{{ r.slot.item }}" value="{{ form_values.get('q_' ~ r.slot.item, r.value) if form_values else r.value }}">{% endif %}
+{%- endmacro %}

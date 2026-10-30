@@ -514,3 +514,60 @@ body.no-print-test .answer-input { -webkit-user-select: text; user-select: text;
 .seq-progress { color: var(--muted); font-size: .933rem; }
 .inline-input { display: inline-block; width: auto; max-width: 12rem; padding: 3px 6px; margin-left: 4px; }
 .num-input { width: 4.5em; }
+
+/* ---------------------------------------------------------------- fixing scanned answers by tapping */
+.fix-top { display: flex; justify-content: space-between; gap: var(--s4); flex-wrap: wrap; align-items: flex-end; margin-bottom: var(--s3); }
+.fix-list { display: grid; gap: var(--s4); }
+.fix-row { display: grid; gap: 6px; padding-bottom: var(--s3); border-bottom: 1px solid var(--rule); }
+.fix-row.flagged .fix-n { color: var(--redpen); }
+.fix-row.confirmed { opacity: .72; }
+.fix-head { display: flex; gap: var(--s3); align-items: center; flex-wrap: wrap; }
+.fix-head .fix-ok { margin-left: auto; }
+.fix-crop { position: relative; overflow: hidden; border: 1px solid var(--rule-strong); background: var(--paper); max-width: 100%; }
+.fix-crop img { position: absolute; max-width: none; user-select: none; -webkit-user-drag: none; }
+.fix-bubble { position: absolute; border-radius: 50%; padding: 0; background: transparent; border: 2px solid transparent; cursor: pointer; }
+.fix-bubble.hint { border: 2px dashed var(--pencil-mark); }
+.fix-bubble.on { border: 2.5px solid var(--graphite); background: rgba(31, 33, 35, .22); }
+.fix-bubble:focus-visible { outline: 2px solid var(--graphite); outline-offset: 2px; }
+.fix-letters { display: inline-flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.fix-letter { width: 40px; height: 40px; border-radius: 50%; border: 1.5px solid var(--dropout); background: var(--paper); color: var(--dropout); font: 600 1rem var(--ui); cursor: pointer; padding: 0; }
+.fix-letter.on { background: var(--graphite); border-color: var(--graphite); color: var(--paper); }
+.fix-none { margin-left: 4px; }
+.fix-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 2px var(--s4); }
+.fix-grid .fix-row { grid-template-columns: 2.2rem 1fr; align-items: center; padding: 4px 0; }
+.fix-grid .fix-letter { width: 32px; height: 32px; font-size: .9rem; }
+details > summary { cursor: pointer; margin-bottom: var(--s2); }
+button[disabled] { opacity: .5; cursor: not-allowed; }
+
+/* ---------------------------------------------------------------- live scanner */
+.scan-progress { display: grid; gap: 4px; margin-bottom: var(--s3); }
+.scan-bar { height: 8px; background: var(--band); border: 1px solid var(--rule); }
+.scan-bar .fill { display: block; height: 100%; background: var(--dropout); }
+.scan-result.ok .state { color: var(--graphite); }
+.scan-result.check .state { color: var(--pencil-ink); }
+.scan-result.bad .state { color: var(--redpen); }
+.scan-result .state { display: inline; }
+.scanner { position: fixed; inset: 0; z-index: 100; background: #111; color: #fff; display: grid; grid-template-columns: minmax(0, 1fr) 380px; }
+.scanner[hidden] { display: none; }
+body.scanner-open { overflow: hidden; }
+.scanner-stage { position: relative; background: #000; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.scanner-stage video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.scanner-overlay { position: absolute; left: 0; top: 0; pointer-events: none; }
+.scanner-hint { position: absolute; left: 12px; right: 12px; bottom: 12px; padding: 10px 14px; background: rgba(0, 0, 0, .72); font-size: 1.05rem; border-left: 4px solid #8a9486; }
+.scanner-hint[data-tone="ok"] { border-left-color: #6fae3d; }
+.scanner-hint[data-tone="warn"] { border-left-color: #e0b100; }
+.scanner-side { background: var(--paper); color: var(--graphite); overflow-y: auto; padding: var(--s3); display: flex; flex-direction: column; gap: var(--s3); }
+.scanner-bar { display: flex; gap: var(--s2); flex-wrap: wrap; align-items: center; }
+.scanner-results { max-height: none; }
+.scanner-fix { border: 1px solid var(--rule-strong); padding: var(--s3); }
+.scanner .fix-crop { max-width: 100%; }
+@media (max-width: 800px) {
+  .scanner { grid-template-columns: 1fr; grid-template-rows: minmax(0, 52%) minmax(0, 1fr); }
+}
+.scanner-side { min-width: 0; }
+.scan-result { display: block; padding: 8px 0; border-bottom: 1px solid var(--rule); overflow-wrap: anywhere; }
+.scan-result .name { display: block; font-weight: 650; }
+.scan-result .state { display: block; margin-top: 2px; }
+.scan-note { display: block; }
+.scan-queue.scanner-results li { display: block; }
+[hidden] { display: none !important; }

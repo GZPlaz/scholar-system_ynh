@@ -1,0 +1,28 @@
+{% from "assessments/_scan_rows.html" import row, carry with context %}
+{% set image_url = url_for('scans.image', assessment_id=assessment.id, scan_id=scan.id) %}
+{% set flagged = rows|selectattr('flag')|list %}
+<form method="post" action="{{ url_for('scans.fix', assessment_id=assessment.id, scan_id=scan.id) }}" class="fix-form" data-fix-form>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="fix-top">
+    <div>
+      <h3 style="margin:0">{{ scan.user.display_name if scan.user else 'Whose sheet is this?' }}{% if result.pages and result.pages > 1 %} <span class="muted small">page {{ result.page }} of {{ result.pages }}</span>{% endif %}</h3>
+      <p class="small muted mb0">{{ flagged|length }} answer{{ 's' if flagged|length != 1 }} to check. Tap the bubble that is filled in; everything else was read clearly.</p>
+    </div>
+    <div class="field" style="margin:0; min-width: 14rem">
+      <label for="fix-user-{{ scan.id }}" class="sr-only">Student</label>
+      <select id="fix-user-{{ scan.id }}" name="user_id" required>
+        <option value="">Choose the student…</option>
+        {% for st in students %}<option value="{{ st.id }}" {{ 'selected' if st.id == scan.user_id }}>{{ st.display_name }} ({{ st.student_number or st.username }})</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+  {% if result.removed %}<p class="small muted">Question(s) {{ result.removed|join(', ') }} were removed from the assessment after printing; their bubbles are ignored.</p>{% endif %}
+  <div class="fix-list">
+    {% for r in rows if r.flag %}{{ row(r, image_url, flag_text) }}{% endfor %}
+  </div>
+  {% for r in rows if not r.flag %}{{ carry(r) }}{% endfor %}
+  <div class="actions mt">
+    <button class="btn btn-primary" type="submit" data-fix-submit>Record these answers</button>
+    <span class="help" data-fix-help></span>
+  </div>
+</form>

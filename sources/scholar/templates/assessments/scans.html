@@ -6,26 +6,50 @@
   <a class="btn" href="{{ url_for('assessments.bubble_sheets', assessment_id=assessment.id) }}" target="_blank">Print answer sheets</a>
 {% endcall %}
 <div class="page-head"><div><h2 style="margin:0">Scan answer sheets</h2>
-  <p class="muted mb0" style="margin-top: var(--s2)">Photograph each completed sheet. Scholar reads the bubbles; you check anything it isn't sure about.</p></div></div>
+  <p class="muted mb0" style="margin-top: var(--s2)">Hold each completed sheet up to the camera. Scholar reads the bubbles and records the clear ones; you only check what it isn't sure about.</p></div></div>
 
 {% if not available %}
 <div class="flash flash-error">Scanning is not available on this server because OpenCV isn't installed (it has no prebuilt package for 32-bit ARM). Type the answers in from the class list instead.</div>
 {% else %}
 <section class="section scan-upload" id="scan-upload" data-upload-url="{{ url_for('scans.upload', assessment_id=assessment.id) }}">
-  <h3>Add photos</h3>
-  <form method="post" action="{{ url_for('scans.upload', assessment_id=assessment.id) }}" enctype="multipart/form-data" class="scan-buttons">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label class="btn btn-primary scan-pick">Take a photo<input type="file" name="photos" accept="image/*" capture="environment" class="sr-only" data-scan-input></label>
-    <label class="btn scan-pick">Choose photos<input type="file" name="photos" accept="image/*" multiple class="sr-only" data-scan-input></label>
-    <noscript><button class="btn" type="submit">Upload</button></noscript>
-  </form>
+  <div class="scan-progress" data-scan-progress>
+    <strong>{{ progress.done }} of {{ progress.total }} students scanned</strong>
+    <div class="scan-bar"><span class="fill" style="width: {{ (100 * progress.done / progress.total)|round|int if progress.total else 0 }}%"></span></div>
+    {% set missing = progress.rows|rejectattr('state', 'in', ['recorded', 'scanned'])|list %}
+    {% if missing %}<span class="small muted">Still to scan: {{ missing[:10]|map(attribute='user.display_name')|join(', ') }}{% if missing|length > 10 %} and {{ missing|length - 10 }} more{% endif %}</span>{% elif progress.total %}<span class="small">Everyone has been scanned.</span>{% endif %}
+  </div>
+  <div class="scan-buttons">
+    <button type="button" class="btn btn-primary scan-pick" id="open-scanner" hidden>Scan with the camera</button>
+    <label class="btn btn-primary scan-pick" data-camera-fallback>Take a photo<input type="file" accept="image/*" capture="environment" class="sr-only" data-scan-input></label>
+    <label class="btn scan-pick">Choose photos<input type="file" accept="image/*" multiple class="sr-only" data-scan-input></label>
+  </div>
+  <label class="check"><input type="checkbox" data-auto-record checked> Record sheets that were read clearly by themselves</label>
   <ul class="scan-tips small muted">
-    <li>Lay the sheet flat in good, even light. All four black corner squares must be in the photo.</li>
-    <li>Any angle and either way up is fine. Fill the frame with the sheet for the best reading.</li>
-    <li>On a phone, “Take a photo” opens the camera; tap it again for the next sheet.</li>
+    <li><strong>Camera:</strong> hold each sheet in front of the camera. Scholar outlines it, takes the photo as soon as it is steady, and shows the result straight away. Slide the next sheet in.</li>
+    <li>Good, even light; all four black corner squares in view; any angle and either way up is fine.</li>
+    <li>Anything Scholar isn't sure about comes with its best guess: tap the bubble that is filled in.</li>
   </ul>
   <ol class="scan-queue" id="scan-queue" aria-live="polite"></ol>
 </section>
+
+<div class="scanner" id="scanner" hidden role="dialog" aria-modal="true" aria-label="Scan answer sheets with the camera">
+  <div class="scanner-stage">
+    <video playsinline muted autoplay></video>
+    <canvas class="scanner-overlay" aria-hidden="true"></canvas>
+    <div class="scanner-hint" id="scanner-hint" aria-live="polite"></div>
+  </div>
+  <div class="scanner-side">
+    <div class="scanner-bar">
+      <button type="button" class="btn btn-sm btn-primary" id="scanner-close">Done</button>
+      <button type="button" class="btn btn-sm" id="scanner-capture">Take photo now</button>
+      <button type="button" class="btn btn-sm" id="scanner-torch" hidden aria-pressed="false">Light</button>
+      <label class="check small"><input type="checkbox" data-auto-record checked> Record clear sheets automatically</label>
+    </div>
+    <div class="scan-progress" data-scan-progress></div>
+    <div class="scanner-fix" id="scanner-fix" hidden></div>
+    <ol class="scan-queue scanner-results" id="scanner-results" aria-live="polite"></ol>
+  </div>
+</div>
 {% endif %}
 
 <div class="tally">
@@ -53,7 +77,7 @@
       <td>
         {% if s.status == 'recorded' %}<span class="badge badge-green">Recorded {{ s.recorded_at|dt }}</span>
         {% elif s.status == 'ready' %}<span class="badge badge-blue">Read cleanly, ready to record</span>
-        {% elif s.status == 'replaced' %}<span class="badge">Replaced by a newer photo of this page</span>
+        {% elif s.status == 'replaced' %}<span class="badge">{{ 'Already recorded: same answers' if s.error == 'duplicate' else 'Replaced by a newer photo of this page' }}</span>
         {% elif s.status == 'review' %}<span class="badge badge-red">Check {{ s.flag_count }} answer{{ 's' if s.flag_count != 1 }}{% if not s.user %} and the student{% endif %}</span>
         {% else %}<span class="badge badge-red">Couldn't read</span><div class="small muted">{{ s.error }}</div>{% endif %}
       </td>
@@ -71,4 +95,4 @@
   </div>
 </section>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='js/scan-upload.js') }}?v={{ app_version }}"></script>{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/scan-fix.js') }}?v={{ app_version }}"></script><script src="{{ url_for('static', filename='js/scanner.js') }}?v={{ app_version }}"></script>{% endblock %}
