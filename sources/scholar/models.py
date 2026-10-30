@@ -282,6 +282,21 @@ class Assessment(db.Model):
     allowed_networks = db.Column(db.Text, nullable=False, default="")  # IPs / CIDR ranges, one per line
     late_start_minutes = db.Column(db.Integer)  # no new starts this long after opening
     watermark = db.Column(db.Boolean, nullable=False, default=True)  # student name across the test
+    # lockdown browser: "" (any browser) or "seb" (Safe Exam Browser, verified by its Config Key)
+    lockdown_browser = db.Column(db.String(20), nullable=False, default="")
+    seb_quit_password_hash = db.Column(db.String(64), nullable=False, default="")  # SHA-256 hex, as SEB wants it
+    seb_extra_keys = db.Column(db.Text, nullable=False, default="")  # more Config Keys / Browser Exam Keys
+    seb_only_listed_keys = db.Column(db.Boolean, nullable=False, default=False)  # don't accept the generated key
+    # password to start: "" (none), "static" (teacher's word) or "rotating" (changes every few minutes)
+    access_password_mode = db.Column(db.String(20), nullable=False, default="")
+    access_password = db.Column(db.String(60), nullable=False, default="")
+    password_secret = db.Column(db.String(64), nullable=False, default="")
+    password_rotation_minutes = db.Column(db.Integer, nullable=False, default=5)
+    bypass_password_hash = db.Column(db.String(256), nullable=False, default="")  # proctor override of the PIN
+    one_sitting = db.Column(db.Boolean, nullable=False, default=False)  # leaving pauses the test
+    sequential = db.Column(db.Boolean, nullable=False, default=False)  # one question at a time, no going back
+    focus_grace_seconds = db.Column(db.Integer, nullable=False, default=0)  # absences shorter than this don't count
+    clock_stops_when_paused = db.Column(db.Boolean, nullable=False, default=False)
 
     course = db.relationship("Course", back_populates="assessments")
     owner = db.relationship("User")
@@ -384,6 +399,8 @@ class Attempt(db.Model):
     lock_reason = db.Column(db.String(200), nullable=False, default="")
     focus_losses = db.Column(db.Integer, nullable=False, default=0)
     ip = db.Column(db.String(64), nullable=False, default="")
+    locked_at = db.Column(db.DateTime)
+    position = db.Column(db.Integer, nullable=False, default=0)  # current question when navigation is restricted
 
     assessment = db.relationship("Assessment", back_populates="attempts")
     user = db.relationship("User", foreign_keys=[user_id], backref=db.backref("attempts", cascade="all, delete-orphan"))
@@ -579,6 +596,7 @@ class TestSession(db.Model):
     ip = db.Column(db.String(64), nullable=False, default="")
     user_agent = db.Column(db.String(300), nullable=False, default="")
     pin_failures = db.Column(db.Integer, nullable=False, default=0)
+    lockdown_ok = db.Column(db.Boolean, nullable=False, default=False)  # proved it runs the required lockdown browser
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
     last_seen_at = db.Column(db.DateTime, nullable=False, default=utcnow)
     expires_at = db.Column(db.DateTime, nullable=False)
@@ -608,10 +626,16 @@ EVENT_LABELS = {
     "unlocked": "Allowed to continue",
     "time_added": "Time added",
     "force_submitted": "Submitted by a proctor",
+    "focus_returned": "Came back to the test",
+    "lockdown_verified": "Safe Exam Browser verified",
+    "lockdown_refused": "Lockdown browser check failed",
+    "password_bypass": "Proctor override used",
+    "left_mid_test": "Left the test before submitting",
+    "next_question": "Moved to the next question",
 }
 EVENT_ATTENTION = {
     "focus_lost", "fullscreen_exit", "copy_blocked", "paste_blocked", "print_blocked", "ip_change",
-    "device_change", "device_blocked", "session_hijack_blocked", "locked",
+    "device_change", "device_blocked", "session_hijack_blocked", "locked", "lockdown_refused", "left_mid_test",
 }
 
 
@@ -628,6 +652,22 @@ class AttemptEvent(db.Model):
     ip = db.Column(db.String(64), nullable=False, default="")
 
     attempt = db.relationship("Attempt", back_populates="events")
+
+
+class Accommodation(db.Model):
+    """Per-student exceptions for one assessment: extra time and extra attempts."""
+
+    __tablename__ = "accommodations"
+    __table_args__ = (db.UniqueConstraint("assessment_id", "user_id"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    assessment_id = db.Column(db.Integer, db.ForeignKey("assessments.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    extra_minutes = db.Column(db.Integer, nullable=False, default=0)
+    extra_attempts = db.Column(db.Integer, nullable=False, default=0)
+
+    assessment = db.relationship("Assessment", backref=db.backref("accommodations", cascade="all, delete-orphan"))
+    user = db.relationship("User")
 
 
 class PortalFailure(db.Model):

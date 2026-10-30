@@ -4,8 +4,16 @@ from flask_login import current_user
 
 from ..extensions import db
 from ..grading import counted_attempts, enforce_deadlines, finalize_attempt
-from ..models import TestSession, User, utcnow
-from ..security import add_event, generate_code, validate_custom_code
+from ..models import Accommodation, TestSession, User, utcnow
+from ..security import (
+    accommodation_for,
+    add_event,
+    generate_code,
+    lock_attempt,
+    rotating_password,
+    unlock_attempt,
+    validate_custom_code,
+)
 from ..taking import remaining_seconds
 from ..utils import log_event, parse_int, staff_required
 from .assessments import get_assessment
@@ -33,6 +41,7 @@ def monitor_rows(assessment):
     for a in assessment.attempts:
         students.setdefault(a.user_id, a.user)
     total_items = len(assessment.items)
+    accommodations = {a.user_id: a for a in assessment.accommodations}
     rows = []
     for user in sorted(students.values(), key=lambda u: u.sort_key):
         mine = sorted(attempts.get(user.id, []), key=lambda a: a.number)
@@ -70,9 +79,22 @@ def monitor_rows(assessment):
                 "no_id": not user.student_number,
                 "no_pin": assessment.identity_check == "pin" and not user.pin_hash,
                 "enrolled": assessment.course.has_student(user),
+                "accommodation": accommodations.get(user.id),
+                "in_seb": bool(session and session.lockdown_ok and assessment.lockdown_browser == "seb"),
+                "position": live.position + 1 if live is not None and assessment.sequential else None,
             }
         )
     return rows
+
+
+def password_info(assessment):
+    """What the proctor reads out in the room, if the assessment asks for a password."""
+    if assessment.access_password_mode == "rotating":
+        code, seconds = rotating_password(assessment)
+        return {"mode": "rotating", "value": f"{code[:3]}-{code[3:]}", "seconds": seconds, "minutes": assessment.password_rotation_minutes}
+    if assessment.access_password_mode == "static":
+        return {"mode": "static", "value": assessment.access_password}
+    return None
 
 
 def _tally(rows):
@@ -85,9 +107,10 @@ def _tally(rows):
 def monitor(assessment_id):
     assessment = get_assessment(assessment_id)
     rows = monitor_rows(assessment)
+    page = {"assessment": assessment, "rows": rows, "tally": _tally(rows), "password": password_info(assessment)}
     if request.args.get("fragment"):
-        return render_template("assessments/_monitor_rows.html", assessment=assessment, rows=rows, tally=_tally(rows))
-    return render_template("assessments/monitor.html", assessment=assessment, rows=rows, tally=_tally(rows))
+        return render_template("assessments/_monitor_rows.html", **page)
+    return render_template("assessments/monitor.html", **page)
 
 
 @bp.route("/<int:assessment_id>/monitor/code", methods=["POST"])
@@ -149,19 +172,31 @@ def student_action(assessment_id, user_id, action):
         if live is not None:
             add_event(live, "device_reset", f"by {current_user.username}")
         flash(f"{who} was signed out. They can sign in again on any device.", "success")
+    elif action in ("allow_attempt", "extra_time"):
+        # accommodations for attempts not started yet
+        accommodation = accommodation_for(assessment, user)
+        if accommodation is None:
+            accommodation = Accommodation(assessment=assessment, user=user)
+            db.session.add(accommodation)
+        if action == "allow_attempt":
+            accommodation.extra_attempts = (accommodation.extra_attempts or 0) + 1
+            flash(f"{who} may take the test once more.", "success")
+        else:
+            minutes = parse_int(request.form.get("minutes"), -1)
+            if not 0 <= minutes <= MAX_ADDED_MINUTES:
+                flash(f"Extra time must be between 0 and {MAX_ADDED_MINUTES} minutes.", "error")
+                return redirect(url_for("proctor.monitor", assessment_id=assessment.id))
+            accommodation.extra_minutes = minutes
+            flash(f"{who} gets {minutes} extra minute(s) on their next attempt.", "success")
     elif live is None:
         flash(f"{who} has no test in progress.", "error")
         return redirect(url_for("proctor.monitor", assessment_id=assessment.id))
     elif action == "lock":
-        live.locked = True
-        live.lock_reason = "Your proctor paused your test"
-        add_event(live, "locked", f"by {current_user.username}")
+        lock_attempt(live, "Your proctor paused your test", f"by {current_user.username}")
         flash(f"{who}'s test is paused.", "success")
     elif action == "unlock":
-        live.locked = False
-        live.lock_reason = ""
-        add_event(live, "unlocked", f"by {current_user.username}")
-        flash(f"{who} can continue.", "success")
+        given = unlock_attempt(live, f"by {current_user.username}")
+        flash(f"{who} can continue." + (f" {given} paused minute(s) were given back." if given else ""), "success")
     elif action == "add_time":
         minutes = parse_int(request.form.get("minutes"), 0)
         if not 0 < minutes <= MAX_ADDED_MINUTES:

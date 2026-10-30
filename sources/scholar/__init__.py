@@ -11,10 +11,11 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from .config import build_config
 from .extensions import csrf, db, login_manager
 
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 # 2: answer_sheets, sheet_scans; 3: api_tokens, users/courses.external_id;
-# 4: test portal (test_sessions, attempt_events, portal_failures, PINs, security settings)
-SCHEMA_VERSION = 4
+# 4: test portal (test_sessions, attempt_events, portal_failures, PINs, security settings);
+# 5: lockdown browser, access passwords, one sitting, restricted navigation, accommodations
+SCHEMA_VERSION = 5
 
 
 class PrefixMiddleware:
@@ -177,6 +178,7 @@ def upgrade_schema():
         _add_missing_column(table, column, ddl, index=False)
     if 0 < current < 4:
         _migrate_to_portal()
+    _ensure_password_secrets()
     _ensure_test_codes()
     if current != SCHEMA_VERSION:
         if row is None:
@@ -204,6 +206,23 @@ SCHEMA_4_COLUMNS = [
     ("attempts", "lock_reason", "VARCHAR(200) NOT NULL DEFAULT ''"),
     ("attempts", "focus_losses", "INTEGER NOT NULL DEFAULT 0"),
     ("attempts", "ip", "VARCHAR(64) NOT NULL DEFAULT ''"),
+    # schema 5
+    ("assessments", "lockdown_browser", "VARCHAR(20) NOT NULL DEFAULT ''"),
+    ("assessments", "seb_quit_password_hash", "VARCHAR(64) NOT NULL DEFAULT ''"),
+    ("assessments", "seb_extra_keys", "TEXT NOT NULL DEFAULT ''"),
+    ("assessments", "seb_only_listed_keys", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("assessments", "access_password_mode", "VARCHAR(20) NOT NULL DEFAULT ''"),
+    ("assessments", "access_password", "VARCHAR(60) NOT NULL DEFAULT ''"),
+    ("assessments", "password_secret", "VARCHAR(64) NOT NULL DEFAULT ''"),
+    ("assessments", "password_rotation_minutes", "INTEGER NOT NULL DEFAULT 5"),
+    ("assessments", "bypass_password_hash", "VARCHAR(256) NOT NULL DEFAULT ''"),
+    ("assessments", "one_sitting", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("assessments", "sequential", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("assessments", "focus_grace_seconds", "INTEGER NOT NULL DEFAULT 0"),
+    ("assessments", "clock_stops_when_paused", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("attempts", "locked_at", "TIMESTAMP"),
+    ("attempts", "position", "INTEGER NOT NULL DEFAULT 0"),
+    ("test_sessions", "lockdown_ok", "BOOLEAN NOT NULL DEFAULT FALSE"),
 ]
 
 
@@ -236,6 +255,13 @@ def _migrate_to_portal():
                 db.session.add(Setting(key=key, value=value))
             else:
                 setting.value = value
+
+
+def _ensure_password_secrets():
+    from .models import Assessment
+
+    for assessment in Assessment.query.filter(Assessment.password_secret == ""):
+        assessment.password_secret = secrets.token_hex(32)
 
 
 def _ensure_test_codes():

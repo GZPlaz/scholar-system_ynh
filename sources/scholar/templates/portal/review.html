@@ -19,6 +19,7 @@
   {% with grading=False %}{% include "_attempt_items.html" %}{% endwith %}
 {% endif %}
 <div class="actions mt">
+  {% if in_seb %}<a class="btn btn-primary" href="{{ url_for('portal.seb_quit') }}">Exit Safe Exam Browser</a>{% endif %}
   <a class="btn" href="{{ url_for('portal.lobby') }}">Back to the test</a>
   <form method="post" action="{{ url_for('portal.leave') }}" class="inline">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

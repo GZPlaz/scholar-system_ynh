@@ -11,9 +11,17 @@
     {% if pin_needed %}
     <div class="field">
       <label for="pin">Your PIN</label>
-      <input type="password" id="pin" name="pin" inputmode="numeric" autocomplete="off" maxlength="32" required autofocus class="code-input">
+      <input type="password" id="pin" name="pin" inputmode="numeric" autocomplete="off" maxlength="32" {{ '' if bypass_possible else 'required' }} autofocus class="code-input">
       <div class="help">The personal PIN your teacher gave you. It is not your test code.</div>
     </div>
+    {% endif %}
+    {% if bypass_possible %}
+    <details class="field">
+      <summary class="small">Proctor override</summary>
+      <label for="bypass" class="mt">Proctor's override password</label>
+      <input type="password" id="bypass" name="bypass" autocomplete="off" maxlength="100">
+      <div class="help">For a proctor at the student's side, when the student can't use their PIN. Its use is recorded.</div>
+    </details>
     {% endif %}
     <div class="actions">
       <button type="submit" name="answer" value="yes" class="btn btn-primary">Yes, this is me</button>

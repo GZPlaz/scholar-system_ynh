@@ -9,6 +9,13 @@
     <b id="test-code">{{ assessment.display_code }}</b>
     <span class="small muted">Students go to <strong>{{ url_for('portal.enter', _external=True) }}</strong> and enter this code and their student ID.</span>
   </div>
+  {% if password %}
+  <div class="test-code">
+    <span class="label">{{ 'Password right now' if password.mode == 'rotating' else 'Test password' }}</span>
+    <b id="test-password">{{ password.value }}</b>
+    <span class="small muted">{% if password.mode == 'rotating' %}Read it out when students start; it changes every {{ password.minutes }} minute{{ 's' if password.minutes != 1 }} (next in <span id="password-left" data-seconds="{{ password.seconds }}">{{ password.seconds // 60 }}:{{ '%02d'|format(password.seconds % 60) }}</span>).{% else %}Students type it to begin.{% endif %}</span>
+  </div>
+  {% endif %}
   <div class="actions">
     {{ post_button(url_for('proctor.change_code', assessment_id=assessment.id), 'New code', confirm='Replace the test code? The old one stops working for new sign-ins.') }}
     {% if tally['waiting'] %}{{ post_button(url_for('proctor.admit_all', assessment_id=assessment.id), 'Let in all ' ~ tally['waiting'] ~ ' waiting', cls='btn btn-sm btn-primary') }}{% endif %}
@@ -17,7 +24,10 @@
 </div>
 <p class="facts small">
   {% if assessment.window_state() != 'open' %}<span class="attn">The test is {{ assessment.window_state() }}: students can't start it now.</span>{% endif %}
+  {% if assessment.lockdown_browser == 'seb' %}<span>Safe Exam Browser required (<a href="{{ url_for('portal.seb_config', code=assessment.access_code) }}">settings file</a>)</span>{% endif %}
   <span>Identity: {{ 'name and PIN' if assessment.identity_check == 'pin' else 'name confirmation' }}</span>
+  {% if assessment.one_sitting %}<span>One sitting</span>{% endif %}
+  {% if assessment.sequential %}<span>No going back</span>{% endif %}
   {% if assessment.require_approval %}<span>You let each student in</span>{% endif %}
   {% if assessment.lock_to_device %}<span>One device per student</span>{% endif %}
   {% if assessment.require_fullscreen %}<span>Full screen</span>{% endif %}

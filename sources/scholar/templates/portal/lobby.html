@@ -12,13 +12,17 @@
 {% if assessment.instructions %}<div class="instructions">{{ assessment.instructions|richtext }}</div>{% endif %}
 <table class="table kv">
   <tr><th>Questions</th><td>{{ assessment.items|length }}, worth {{ assessment.max_score|num }} points in total</td></tr>
-  <tr><th>Time limit</th><td>{{ (assessment.time_limit_minutes ~ ' minutes. The timer starts when you begin and does not pause.') if assessment.time_limit_minutes else 'None' }}</td></tr>
+  <tr><th>Time limit</th><td>{% if assessment.time_limit_minutes %}{{ assessment.time_limit_minutes + (accommodation.extra_minutes if accommodation else 0) }} minutes{% if accommodation and accommodation.extra_minutes %} (including {{ accommodation.extra_minutes }} extra for you){% endif %}. The timer starts when you begin{{ '' if assessment.clock_stops_when_paused else ' and does not pause' }}.{% else %}None{% endif %}</td></tr>
   {% if assessment.closes_at %}<tr><th>Closes</th><td>{{ assessment.closes_at|dt }}</td></tr>{% endif %}
-  <tr><th>Attempts</th><td>{{ attempts|length }} used{% if assessment.max_attempts %} of {{ assessment.max_attempts }}{% else %}, no limit{% endif %}</td></tr>
+  <tr><th>Attempts</th><td>{{ attempts|length }} used{% if assessment.max_attempts %} of {{ assessment.max_attempts + (accommodation.extra_attempts if accommodation else 0) }}{% else %}, no limit{% endif %}</td></tr>
 </table>
 {% set rules = [] %}
+{% if assessment.lockdown_browser == 'seb' %}{% set _ = rules.append('The test runs in Safe Exam Browser, which locks this device to the test until you finish.') %}{% endif %}
 {% if assessment.require_fullscreen %}{% set _ = rules.append('The test runs in full screen. Leaving full screen hides the questions and is recorded.') %}{% endif %}
-{% if assessment.max_focus_losses %}{% set _ = rules.append('Leaving the test page (another tab, window or app) is recorded. After ' ~ assessment.max_focus_losses ~ ' time' ~ ('s' if assessment.max_focus_losses != 1 else '') ~ ', your test is paused until your proctor lets you continue.') %}{% else %}{% set _ = rules.append('Leaving the test page (another tab, window or app) is recorded for your teacher.') %}{% endif %}
+{% if assessment.sequential %}{% set _ = rules.append('Questions come one at a time. Once you move on, you can\'t go back to a question.') %}{% endif %}
+{% if assessment.one_sitting %}{% set _ = rules.append('Finish in one sitting: if you close or leave the test before submitting, it is paused until your proctor lets you continue.') %}{% endif %}
+{% set grace = (' for more than ' ~ assessment.focus_grace_seconds ~ ' seconds') if assessment.focus_grace_seconds else '' %}
+{% if assessment.max_focus_losses %}{% set _ = rules.append('Leaving the test page (another tab, window or app)' ~ grace ~ ' is recorded. After ' ~ assessment.max_focus_losses ~ ' time' ~ ('s' if assessment.max_focus_losses != 1 else '') ~ ', your test is paused until your proctor lets you continue.') %}{% else %}{% set _ = rules.append('Leaving the test page (another tab, window or app) is recorded for your teacher.') %}{% endif %}
 {% if assessment.block_copy_paste %}{% set _ = rules.append('Copying, pasting and printing are switched off.') %}{% endif %}
 {% if assessment.lock_to_device %}{% set _ = rules.append('Once you begin, the test stays on this device. Only your proctor can move it to another one.') %}{% endif %}
 <section class="section">
@@ -31,7 +35,14 @@
 {% elif problem %}
   <div class="flash flash-info">{{ problem }}</div>
 {% else %}
-  <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-primary" type="submit">Begin {{ 'attempt ' ~ (attempts|length + 1) if attempts else 'the test' }}</button></form>
+  {% if error %}<div class="flash flash-error" role="alert">{{ error }}</div>{% endif %}
+  <form method="post" autocomplete="off"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if assessment.access_password_mode %}
+    <div class="field" style="max-width:260px"><label for="password">Test password</label><input type="text" id="password" name="password" class="code-input" autocapitalize="characters" spellcheck="false" maxlength="60" required autofocus>
+      <div class="help">Your proctor gives it in the room{{ ' (it changes every few minutes)' if assessment.access_password_mode == 'rotating' }}.</div></div>
+    {% endif %}
+    <button class="btn btn-primary" type="submit">Begin {{ 'attempt ' ~ (attempts|length + 1) if attempts else 'the test' }}</button>
+  </form>
 {% endif %}
 </div>
 {% set done = attempts|selectattr('status', 'equalto', 'submitted')|list %}

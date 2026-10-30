@@ -1,0 +1,22 @@
+{% extends "portal/base.html" %}
+{% block title %}Safe Exam Browser required{% endblock %}
+{% block content %}
+<div class="signin wide" id="seb-gate" data-check-url="{{ check_url }}" data-page-url="{{ page_url }}">
+  <p class="institution">{{ assessment.course.code }}: {{ assessment.title }}</p>
+  <h1>Open this test in Safe Exam Browser</h1>
+  <div id="seb-checking" class="flash flash-info" hidden>Checking Safe Exam Browser…</div>
+  <div id="seb-wrong" class="flash flash-error" role="alert" hidden>This Safe Exam Browser is not running this test's settings. Quit it, then open the test again with the button below.</div>
+  <div id="seb-instructions">
+    <p>This test only opens in Safe Exam Browser, which locks your computer or iPad to the test until you finish.</p>
+    <ol class="rules">
+      <li>If Safe Exam Browser is not installed yet, <a href="{{ seb_download }}" rel="noopener noreferrer" target="_blank">download it</a> (Windows, macOS or iPad) and install it.</li>
+      <li>Open the test in Safe Exam Browser:
+        <p class="mt"><a class="btn btn-primary" href="{{ open_url }}">Open in Safe Exam Browser</a></p>
+        <p class="small muted">Nothing happens? <a href="{{ download_url }}">Download the test's settings file</a> and open it.</p></li>
+      <li>In Safe Exam Browser, enter the test code and your student ID again.</li>
+    </ol>
+    <p class="small muted">Chromebooks can't run Safe Exam Browser: ask your teacher for another device.</p>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/seb.js') }}?v={{ app_version }}"></script>{% endblock %}

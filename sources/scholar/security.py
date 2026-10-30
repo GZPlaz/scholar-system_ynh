@@ -1,9 +1,11 @@
 """Test-portal security: test codes, network allowlists, throttling and portal session tokens."""
 import hashlib
+import hmac
 import ipaddress
 import logging
+import math
 import secrets
-from datetime import timedelta
+from datetime import timedelta, timezone
 
 from flask import current_app, request
 
@@ -180,6 +182,87 @@ MAX_EVENTS_PER_ATTEMPT = 500  # a misbehaving browser cannot flood the timeline
 def add_event(attempt, kind, detail=""):
     if attempt is None or len(attempt.events) >= MAX_EVENTS_PER_ATTEMPT:
         return None
-    event = AttemptEvent(attempt=attempt, kind=kind[:40], detail=str(detail)[:300], ip=client_ip())
+    # created_at is set now (not at flush) so events added in this request can be compared at once
+    event = AttemptEvent(attempt=attempt, kind=kind[:40], detail=str(detail)[:300], ip=client_ip(), created_at=utcnow())
     db.session.add(event)
     return event
+
+
+# --------------------------------------------------------------------------- start passwords
+
+
+def _rotating_code(secret, window):
+    digest = hmac.new(secret.encode(), str(window).encode(), hashlib.sha256).digest()
+    return "".join(CODE_ALPHABET[b % len(CODE_ALPHABET)] for b in digest[:6])
+
+
+def rotating_password(assessment, now=None):
+    """The current rotating password and the seconds until it changes (the proctor shows it in the room)."""
+    period = max(1, assessment.password_rotation_minutes or 5) * 60
+    stamp = int((now or utcnow()).replace(tzinfo=timezone.utc).timestamp())
+    window = stamp // period
+    return _rotating_code(assessment.password_secret or "", window), period - stamp % period
+
+
+def check_access_password(assessment, given, now=None):
+    """Static: the teacher's word (case and spaces ignored). Rotating: the current or previous code."""
+    mode = assessment.access_password_mode
+    if not mode:
+        return True
+    given = normalize_code(given)
+    if not given:
+        return False
+    if mode == "static":
+        return hmac.compare_digest(given, normalize_code(assessment.access_password))
+    period = max(1, assessment.password_rotation_minutes or 5) * 60
+    stamp = int((now or utcnow()).replace(tzinfo=timezone.utc).timestamp())
+    window = stamp // period
+    # the previous code stays valid for one more period, so a code read just before it changes still works
+    return any(hmac.compare_digest(given, _rotating_code(assessment.password_secret or "", w)) for w in (window, window - 1))
+
+
+def password_scope(assessment_id, user_id):
+    return f"password:{assessment_id}:{user_id}"
+
+
+PASSWORD_FAILURES_PER_STUDENT = 10
+
+
+def password_blocked(assessment_id, user_id):
+    return failures(scope=password_scope(assessment_id, user_id)) >= PASSWORD_FAILURES_PER_STUDENT
+
+
+# --------------------------------------------------------------------------- pausing
+
+
+def lock_attempt(attempt, reason, detail=""):
+    if attempt.locked:
+        return
+    attempt.locked = True
+    attempt.lock_reason = reason[:200]
+    attempt.locked_at = utcnow()
+    add_event(attempt, "locked", detail or reason)
+
+
+def unlock_attempt(attempt, detail=""):
+    """Let the student continue; give back the paused time when the assessment stops the clock."""
+    if not attempt.locked:
+        return 0
+    given = 0
+    if attempt.assessment.clock_stops_when_paused and attempt.locked_at:
+        given = math.ceil((utcnow() - attempt.locked_at).total_seconds() / 60)
+        attempt.extra_minutes += given
+    attempt.locked = False
+    attempt.lock_reason = ""
+    attempt.locked_at = None
+    add_event(attempt, "unlocked", detail + (f", {given} paused minute(s) given back" if given else ""))
+    return given
+
+
+# --------------------------------------------------------------------------- accommodations
+
+
+def accommodation_for(assessment, user):
+    from .models import Accommodation
+
+    return Accommodation.query.filter_by(assessment_id=assessment.id, user_id=user.id).first()

@@ -29,6 +29,19 @@
       </div>
       <label class="check"><input type="checkbox" name="allow_online" value="1" {{ checked('allow_online', a.allow_online if a else True) }}> Students can take this assessment online in the test portal (uncheck for paper-only tests)</label>
     </div>
+    <div class="section" id="lockdown">
+      <h3>Lockdown browser</h3>
+      {% set lb = val('lockdown_browser', a.lockdown_browser if a else '') %}
+      <label class="check"><input type="radio" name="lockdown_browser" value="" {{ 'checked' if not lb }}> Any browser</label>
+      <label class="check"><input type="radio" name="lockdown_browser" value="seb" {{ 'checked' if lb == 'seb' }}> Require Safe Exam Browser <span class="small muted">(Windows, macOS, iPad; free; locks the device to the test)</span></label>
+      <p class="help">Scholar makes the Safe Exam Browser settings for this test and lets a browser in only when it proves it runs exactly those settings.{% if a and a.lockdown_browser == 'seb' %} <a href="{{ url_for('portal.seb_config', code=a.access_code) }}">Download the settings file</a>. Changing the settings below changes the file: students who downloaded it earlier get the new one from the test portal.{% endif %} Chromebooks can't run Safe Exam Browser.</p>
+      <div class="form-row">
+        <div class="field"><label for="sqp">Quit password</label><input type="password" id="sqp" name="seb_quit_password" autocomplete="new-password" minlength="8" placeholder="{{ 'Set (leave empty to keep)' if a and a.seb_quit_password_hash else 'None: students can quit' }}"><div class="help">Needed to leave Safe Exam Browser before the test is submitted. For proctors only.</div>
+          {% if a and a.seb_quit_password_hash %}<label class="check small mt"><input type="checkbox" name="clear_seb_quit_password" value="1"> Remove the quit password</label>{% endif %}</div>
+        <div class="field"><label for="sek">Also accept these keys</label><textarea id="sek" name="seb_extra_keys" rows="3" class="code-input" style="text-transform:none" placeholder="Optional">{{ val('seb_extra_keys', a.seb_extra_keys if a else '') }}</textarea><div class="help">Config Keys of your own SEB settings files, or Browser Exam Keys, one per line.</div>
+          <label class="check small mt"><input type="checkbox" name="seb_only_listed_keys" value="1" {{ checked('seb_only_listed_keys', a.seb_only_listed_keys if a else False) }}> Accept only these keys (strictest: Browser Exam Keys also prove the SEB program)</label></div>
+      </div>
+    </div>
     <div class="section" id="security">
       <h3>Test-taking security</h3>
       <div class="form-row">
@@ -39,13 +52,25 @@
         <label class="check"><input type="radio" name="identity_check" value="confirm" {{ 'checked' if ic == 'confirm' }}> They confirm the name shown for their student ID</label>
         <label class="check"><input type="radio" name="identity_check" value="pin" {{ 'checked' if ic == 'pin' }}> They also type their personal PIN <span class="small muted">(strongest: give out PINs from the course roster)</span></label>
       </fieldset>
+      {% set pm = val('access_password_mode', a.access_password_mode if a else '') %}
+      <fieldset class="field"><legend>Password to begin</legend>
+        <label class="check"><input type="radio" name="access_password_mode" value="" {{ 'checked' if not pm }}> None</label>
+        <label class="check"><input type="radio" name="access_password_mode" value="static" {{ 'checked' if pm == 'static' }}> A password you give in the room:
+          <input type="text" name="access_password" value="{{ val('access_password', a.access_password if a else '') }}" maxlength="60" class="code-input inline-input" aria-label="Test password"></label>
+        <label class="check"><input type="radio" name="access_password_mode" value="rotating" {{ 'checked' if pm == 'rotating' }}> A password that changes every
+          <input type="number" name="password_rotation_minutes" min="1" max="60" value="{{ val('password_rotation_minutes', a.password_rotation_minutes if a else 5) }}" class="inline-input num-input" aria-label="Minutes between password changes"> minutes, shown on the Proctor page <span class="small muted">(only students in the room can read it)</span></label>
+      </fieldset>
       <label class="check"><input type="checkbox" name="require_approval" value="1" {{ checked('require_approval', a.require_approval if a else False) }}> A proctor lets each student in from the Proctor page</label>
+      <label class="check"><input type="checkbox" name="one_sitting" value="1" {{ checked('one_sitting', a.one_sitting if a else False) }}> Complete the test in one sitting: leaving before submitting pauses it until a proctor lets the student continue</label>
       <label class="check"><input type="checkbox" name="lock_to_device" value="1" {{ checked('lock_to_device', a.lock_to_device if a else True) }}> Keep each test on one device: moving to another needs a proctor</label>
       <label class="check"><input type="checkbox" name="require_fullscreen" value="1" {{ checked('require_fullscreen', a.require_fullscreen if a else False) }}> Require full screen (questions are hidden outside full screen)</label>
       <label class="check"><input type="checkbox" name="block_copy_paste" value="1" {{ checked('block_copy_paste', a.block_copy_paste if a else True) }}> Switch off copying, pasting, the context menu and printing</label>
       <label class="check"><input type="checkbox" name="watermark" value="1" {{ checked('watermark', a.watermark if a else True) }}> Show the student's name and ID faintly across the test</label>
       <div class="form-row mt">
         <div class="field"><label for="mfl">Pause the test after leaving it</label><input type="number" id="mfl" name="max_focus_losses" min="1" max="50" value="{{ val('max_focus_losses', a.max_focus_losses or '' if a else '') }}" placeholder="Never"><div class="help">Times a student may switch tab, window or app (or leave full screen) before a proctor must let them continue. Every exit is recorded either way.</div></div>
+        <div class="field"><label for="fgs">Ignore absences shorter than (seconds)</label><input type="number" id="fgs" name="focus_grace_seconds" min="0" max="60" value="{{ val('focus_grace_seconds', a.focus_grace_seconds if a else 0) }}"><div class="help">0 counts every exit. 5 matches common practice: a notification that steals focus for a moment doesn't count.</div></div>
+        <div class="field"><label for="bpw">Proctor override password</label><input type="password" id="bpw" name="bypass_password" autocomplete="new-password" minlength="8" placeholder="{{ 'Set (leave empty to keep)' if a and a.bypass_password_hash else 'None' }}"><div class="help">Lets a proctor at a student's side sign them in without their PIN. Each use is recorded.</div>
+          {% if a and a.bypass_password_hash %}<label class="check small mt"><input type="checkbox" name="clear_bypass_password" value="1"> Remove it</label>{% endif %}</div>
         <div class="field"><label for="nets">Allowed networks</label><textarea id="nets" name="allowed_networks" rows="3" placeholder="Anywhere" class="code-input" style="text-transform:none">{{ val('allowed_networks', a.allowed_networks if a else '') }}</textarea><div class="help">One IP address or range per line, e.g. 203.0.113.0/24, to allow the test only from school.</div></div>
       </div>
     </div>
@@ -55,6 +80,8 @@
       <h3>Delivery</h3>
       <label class="check"><input type="checkbox" name="shuffle_questions" value="1" {{ checked('shuffle_questions', a.shuffle_questions if a else False) }}> Shuffle question order per student</label>
       <label class="check"><input type="checkbox" name="shuffle_choices" value="1" {{ checked('shuffle_choices', a.shuffle_choices if a else False) }}> Shuffle answer options</label>
+      <label class="check"><input type="checkbox" name="sequential" value="1" {{ checked('sequential', a.sequential if a else False) }}> Restrict question navigation: one question at a time, no going back</label>
+      <label class="check"><input type="checkbox" name="clock_stops_when_paused" value="1" {{ checked('clock_stops_when_paused', a.clock_stops_when_paused if a else False) }}> Stop the clock while a test is paused (the paused time is given back)</label>
     </div>
     <div class="section">
       <h3>Results</h3>

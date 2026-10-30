@@ -508,3 +508,9 @@ body.no-print-test .answer-input { -webkit-user-select: text; user-select: text;
 .stat-line { display: flex; flex-wrap: wrap; gap: 4px var(--s5); margin: 0 0 var(--s3); font-size: .933rem; }
 .stat-line b { font-variant-numeric: tabular-nums; }
 .chart-title { font-size: 1rem; font-weight: 650; margin: 0 0 var(--s2); }
+.signin.wide { max-width: 560px; }
+.signin.wide .btn { width: auto; }
+.away-warning > div { max-width: 480px; }
+.seq-progress { color: var(--muted); font-size: .933rem; }
+.inline-input { display: inline-block; width: auto; max-width: 12rem; padding: 3px 6px; margin-left: 4px; }
+.num-input { width: 4.5em; }

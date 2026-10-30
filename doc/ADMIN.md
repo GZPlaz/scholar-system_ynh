@@ -18,6 +18,26 @@
 
 Each assessment's **Settings → Test-taking security** controls: the identity check (name or name + PIN), proctor admission, one device per attempt, full screen, copy/paste/print blocking, the name watermark, how many times a student may leave the test before it pauses, allowed networks (IP ranges, e.g. the campus range) and a late-start limit, alongside the time limit, availability window and attempts.
 
+Further options, per assessment:
+
+- **Password to begin**: a fixed password you give in the room, or one that changes every few minutes and is shown on the Proctor tab (the previous one stays valid for one more period), so only students in the room can start.
+- **Proctor override password**: lets a proctor at a student's side sign them in without their PIN. Each use is recorded.
+- **Complete in one sitting**: if a student signs in again or goes silent for two minutes before submitting, the test pauses until a proctor lets them continue. A proctor's own "Sign out" (to move a student to another device) doesn't count.
+- **Restrict question navigation**: one question at a time; once a student moves on, the server refuses changes to earlier answers.
+- **Ignore short absences** (seconds): exits shorter than this are recorded but don't count toward the pause; students see how many exits they have left when they come back.
+- **Stop the clock while paused**: the paused minutes are given back when the proctor lets the student continue.
+- **Accommodations** (Proctor tab): extra minutes and one more attempt, per student.
+
+### Lockdown browser (Safe Exam Browser)
+
+Choose **Require Safe Exam Browser** under **Settings → Lockdown browser**. Scholar then generates the SEB settings file for the assessment (`/test/seb/<test code>.seb`): start page, full screen, no spell check, no right click or screenshots, no virtual machines, cookies cleared at start and end, and an optional **quit password** for proctors.
+
+Students who open the test in an ordinary browser see instructions and an "Open in Safe Exam Browser" button that launches SEB with these settings (they install SEB once from safeexambrowser.org). Inside SEB they enter the code and student ID again.
+
+Every request is checked against the settings' **Config Key**, computed as the SEB specification describes: SEB for Windows sends it (hashed with each URL) in the `X-SafeExamBrowser-ConfigKeyHash` header; SEB for macOS and iPad can't send headers, so the page reads it from SEB's JavaScript API and Scholar checks it once, after which the session is bound to that browser. Changing the lockdown settings changes the key: students simply open the test again from the portal.
+
+Limits: Chromebooks can't run SEB. The Config Key proves the settings, not the SEB program itself, and the settings file is downloadable by anyone with the test code, so a determined, technical student could imitate it. For more assurance, add the **Browser Exam Keys** of your exam computers (shown in SEB's settings tool) under "Also accept these keys" and tick **Accept only these keys**, so the generated key alone no longer opens the test; and keep a proctor in the room.
+
 What the server enforces regardless of the browser: the time limit and closing time, the attempt limit, network allowlist, late start, one device per attempt, PIN throttling (5 wrong PINs per student per 15 minutes) and code/ID guessing limits (60 per network per 15 minutes; classrooms share an address, so this never bans anyone at the firewall). Portal sessions are random tokens stored hashed, rotated after the identity check, bound to the browser, in an HttpOnly SameSite=Strict cookie limited to `/test`, with a strict Content Security Policy.
 
 What the browser reports (full screen, leaving the page, copy/paste attempts) is recorded and counted on the server; past the limit the server pauses the attempt. A browser can't prove that nobody uses a second device, so for high-stakes exams combine these settings with a proctor in the room, proctor admission and PINs.

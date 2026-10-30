@@ -35,7 +35,7 @@
 
   /* Server state: time left, paused, closed or signed out. */
   function applyState(resp, body) {
-    if ((resp.status === 409 || resp.status === 401) && body.redirect) { leaveTo(body.redirect); return false; }
+    if ((resp.status === 409 || resp.status === 401 || resp.status === 403) && body.redirect) { leaveTo(body.redirect); return false; }
     if (typeof body.remaining === "number") remaining = body.remaining;
     setLocked(!!body.locked, body.lock_reason);
     return true;
@@ -69,8 +69,25 @@
     var data = new FormData();
     data.append("kind", kind);
     data.append("csrf_token", csrf);
-    post(eventUrl, data).then(function (r) { applyState(r[0], r[1]); }).catch(function () {});
+    post(eventUrl, data).then(function (r) {
+      if (applyState(r[0], r[1]) && r[1].warning) warn(r[1].warning);
+    }).catch(function () {});
   }
+
+  /* Tell the student, on return, that leaving was recorded and how close they are to a pause. */
+  var awayWarning = document.getElementById("away-warning");
+  function warn(info) {
+    if (!awayWarning || locked) return;
+    var text = "Leaving the test page is recorded for your teacher.";
+    if (info.limit) {
+      var left = info.limit - info.count;
+      text = "This was exit " + info.count + " of " + info.limit + ". " +
+        (left > 0 ? "After " + left + " more, your test is paused until your proctor lets you continue." : "Your test is now paused.");
+    }
+    document.getElementById("away-text").textContent = text;
+    awayWarning.hidden = false;
+  }
+  if (awayWarning) document.getElementById("away-ok").addEventListener("click", function () { awayWarning.hidden = true; });
 
   function updateNavigator() {
     document.querySelectorAll(".question[data-item]").forEach(function (q) {
@@ -151,6 +168,11 @@
 
   form.addEventListener("submit", function (event) {
     if (preview) { event.preventDefault(); alert("This is a preview: nothing is submitted."); return; }
+    if (event.submitter && event.submitter.hasAttribute("data-no-confirm")) {
+      submitted = true; // moving to the next question: the page is replaced, no question asked
+      window.onbeforeunload = null;
+      return;
+    }
     var left = updateNavigator();
     var msg = left > 0 ? "You have " + left + " unanswered question(s). Submit anyway? You cannot change your answers afterwards."
                        : "Submit your answers? You cannot change them afterwards.";
@@ -159,21 +181,37 @@
     window.onbeforeunload = null;
   });
 
+  // Reloading or leaving the page also fires "hidden": that is not leaving the test to look
+  // something up (closing the test is handled by "one sitting" on the server), so ignore it.
+  var unloading = false;
   window.onbeforeunload = function () {
+    unloading = true;
+    window.setTimeout(function () { unloading = false; }, 3000); // the student chose to stay
     if (!preview && dirty && !submitted) { save(true); return "Your latest answers may not be saved yet."; }
   };
+  window.addEventListener("pagehide", function () { unloading = true; });
 
   /* ---- leaving the test page ---- */
-  var lastAway = 0;
+  var lastAway = 0, isAway = false;
   function away(kind) {
+    if (unloading || submitted) return;
     var now = Date.now();
+    isAway = true;
     if (now - lastAway < 1500) return; // blur and visibilitychange fire together
     lastAway = now;
     save(true);
     report(kind);
   }
-  document.addEventListener("visibilitychange", function () { if (document.visibilityState === "hidden") away("focus_lost"); });
+  function back() {
+    if (!isAway) return;
+    isAway = false;
+    report("focus_returned"); // the server times the absence and decides whether it counts
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") away("focus_lost"); else back();
+  });
   window.addEventListener("blur", function () { if (!document.hasFocus()) away("focus_lost"); });
+  window.addEventListener("focus", back);
 
   /* ---- full screen ---- */
   if (wantFullscreen && !preview && fullscreenGate) {
@@ -188,7 +226,7 @@
         document.documentElement.requestFullscreen().catch(function () {});
       });
       document.addEventListener("fullscreenchange", function () {
-        if (!document.fullscreenElement && !submitted) away("fullscreen_exit");
+        if (!document.fullscreenElement && !submitted) away("fullscreen_exit"); else if (document.fullscreenElement) back();
         gate();
       });
       gate();

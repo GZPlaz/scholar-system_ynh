@@ -4,7 +4,7 @@ from datetime import timedelta
 
 from test_app import app, login  # noqa: F401  (fixture re-export; puts sources/ on sys.path)
 
-from scholar import upgrade_schema
+from scholar import SCHEMA_VERSION, upgrade_schema
 from scholar.analytics import answer_similarity, assessment_insights
 from scholar.extensions import db
 from scholar.models import Assessment, Attempt, AttemptEvent, Setting, TestSession, User, utcnow
@@ -419,7 +419,7 @@ def test_upgrade_moves_students_to_the_portal(app):
         assert student.password_hash is None and student.auth_source == "portal"
         assert len(Assessment.query.filter_by(title="Unit 1 Check-in").one().access_code) == 8
         assert db.session.get(Setting, "ldap_autoprovision").value == "0"
-        assert db.session.get(Setting, "schema_version").value == "4"
+        assert db.session.get(Setting, "schema_version").value == str(SCHEMA_VERSION)
 
 
 # --------------------------------------------------------------------------- analytics

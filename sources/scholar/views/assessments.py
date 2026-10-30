@@ -1,5 +1,9 @@
+import re
+import secrets
+
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user
+from werkzeug.security import generate_password_hash
 
 from ..analytics import assessment_insights, item_analysis, score_summary
 from ..extensions import db
@@ -42,7 +46,8 @@ from ..utils import (
     safe_filename,
     staff_required,
 )
-from ..security import ensure_code, generate_code, parse_networks, validate_custom_code
+from ..lockdown import hash_quit_password
+from ..security import ensure_code, generate_code, normalize_code, parse_networks, validate_custom_code
 from .questions import visible_questions_query
 
 bp = Blueprint("assessments", __name__, url_prefix="/assessments")
@@ -108,6 +113,33 @@ def _apply_settings(assessment, form):
         errors.append("A late-start limit counts from the opening time: set when the test opens.")
     networks_text = "\n".join(line.strip() for line in form.get("allowed_networks", "").splitlines() if line.strip())[:4000]
     errors.extend(parse_networks(networks_text)[1])
+    # lockdown browser and Pear-style rules
+    lockdown_browser = form.get("lockdown_browser", "")
+    if lockdown_browser not in ("", "seb"):
+        errors.append("Choose a lockdown browser option.")
+    seb_keys_text = "\n".join(line.strip() for line in form.get("seb_extra_keys", "").splitlines() if line.strip())[:8000]
+    for line in seb_keys_text.splitlines():
+        value = line.split("#", 1)[0].strip()
+        if value and not re.fullmatch(r"[0-9a-fA-F]{64}", value):
+            errors.append(f"“{value[:20]}…” is not a Safe Exam Browser key (64 hexadecimal characters).")
+    quit_password = form.get("seb_quit_password", "")
+    if quit_password and len(quit_password) < 8:
+        errors.append("The Safe Exam Browser quit password needs at least 8 characters: it is stored in the settings file students download.")
+    password_mode = form.get("access_password_mode", "")
+    if password_mode not in ("", "static", "rotating"):
+        errors.append("Choose a password option.")
+    static_password = form.get("access_password", "").strip()[:60]
+    if password_mode == "static" and len(normalize_code(static_password)) < 4:
+        errors.append("The test password needs at least 4 letters or digits.")
+    rotation = parse_int(form.get("password_rotation_minutes"), 5)
+    if rotation is None or not 1 <= rotation <= 60:
+        errors.append("A rotating password changes every 1 to 60 minutes.")
+    bypass = form.get("bypass_password", "")
+    if bypass and len(bypass) < 8:
+        errors.append("The proctor override password needs at least 8 characters.")
+    grace = parse_int(form.get("focus_grace_seconds"), 0) if form.get("focus_grace_seconds", "").strip() else 0
+    if grace is None or not 0 <= grace <= 60:
+        errors.append("Ignoring short absences takes 0 to 60 seconds.")
     if errors:
         return errors
     assessment.title = title[:200]
@@ -134,6 +166,26 @@ def _apply_settings(assessment, form):
     assessment.max_focus_losses = max_focus_losses
     assessment.late_start_minutes = late_start
     assessment.allowed_networks = networks_text
+    assessment.lockdown_browser = lockdown_browser
+    assessment.seb_extra_keys = seb_keys_text
+    assessment.seb_only_listed_keys = parse_bool(form.get("seb_only_listed_keys", "")) and bool(seb_keys_text.strip())
+    if quit_password:
+        assessment.seb_quit_password_hash = hash_quit_password(quit_password)
+    elif parse_bool(form.get("clear_seb_quit_password", "")):
+        assessment.seb_quit_password_hash = ""
+    assessment.access_password_mode = password_mode
+    assessment.access_password = static_password if password_mode == "static" else assessment.access_password or ""
+    assessment.password_rotation_minutes = rotation
+    if not assessment.password_secret:
+        assessment.password_secret = secrets.token_hex(32)
+    if bypass:
+        assessment.bypass_password_hash = generate_password_hash(bypass)
+    elif parse_bool(form.get("clear_bypass_password", "")):
+        assessment.bypass_password_hash = ""
+    assessment.one_sitting = parse_bool(form.get("one_sitting", ""))
+    assessment.sequential = parse_bool(form.get("sequential", ""))
+    assessment.focus_grace_seconds = grace
+    assessment.clock_stops_when_paused = parse_bool(form.get("clock_stops_when_paused", ""))
     return []
 
 
@@ -166,6 +218,8 @@ def new():
         "lock_to_device": "1",
         "block_copy_paste": "1",
         "watermark": "1",
+        "password_rotation_minutes": "5",
+        "focus_grace_seconds": "0",
     }
     return render_template("assessments/settings.html", assessment=None, course=course, form=defaults)
 
@@ -360,6 +414,19 @@ def duplicate(assessment_id):
         allowed_networks=source.allowed_networks,
         watermark=source.watermark,
         access_code=generate_code(),
+        lockdown_browser=source.lockdown_browser,
+        seb_quit_password_hash=source.seb_quit_password_hash,
+        seb_extra_keys=source.seb_extra_keys,
+        seb_only_listed_keys=source.seb_only_listed_keys,
+        access_password_mode=source.access_password_mode,
+        access_password=source.access_password,
+        password_rotation_minutes=source.password_rotation_minutes,
+        password_secret=secrets.token_hex(32),
+        bypass_password_hash=source.bypass_password_hash,
+        one_sitting=source.one_sitting,
+        sequential=source.sequential,
+        focus_grace_seconds=source.focus_grace_seconds,
+        clock_stops_when_paused=source.clock_stops_when_paused,
     )
     db.session.add(copy)
     copy.course = course

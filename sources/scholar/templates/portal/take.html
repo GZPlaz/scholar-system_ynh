@@ -4,6 +4,7 @@
 {% block main_class %}take{% endblock %}
 {% block leave %}{% endblock %}
 {% block content %}
+{% set seq = assessment.sequential and attempt and not preview %}
 {% if preview %}
 <div class="flash flash-info no-print">Preview: this is what students see. Answers are not saved. <a href="{{ url_for('assessments.detail', assessment_id=assessment.id) }}">Back to the assessment</a></div>
 {% endif %}
@@ -24,6 +25,13 @@
     <p class="small muted">Raise your hand: your proctor can let you continue. Your saved answers are safe, and the timer keeps running.</p>
   </div>
 </div>
+<div class="lock-screen away-warning" id="away-warning" hidden role="alertdialog" aria-labelledby="away-title">
+  <div>
+    <h1 id="away-title">You left the test</h1>
+    <p id="away-text">Leaving the test page is recorded for your teacher.</p>
+    <button type="button" class="btn btn-primary" id="away-ok">Back to the test</button>
+  </div>
+</div>
 <form method="post" id="take-form"
       action="{{ url_for('portal.submit') if attempt else '#' }}"
       data-save-url="{{ url_for('portal.autosave') if attempt else '' }}"
@@ -34,10 +42,14 @@
       {% if preview %}data-preview{% endif %}>
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="take-bar">
+    {% if seq %}
+    <div><span class="title">{{ assessment.title }}</span> <span class="seq-progress">Question {{ attempt.position + 1 }} of {{ total }}</span></div>
+    {% else %}
     <div><span class="title">{{ assessment.title }}</span> <span class="small muted" id="answered-count"></span></div>
     <nav class="qnav" aria-label="Jump to question">
       {% for e in entries %}<a href="#q{{ loop.index }}" data-item="{{ e.item.id }}" title="Question {{ loop.index }}">{{ loop.index }}</a>{% endfor %}
     </nav>
+    {% endif %}
     <div class="actions">
       <span class="save-state" id="save-state" aria-live="polite"></span>
       {% if remaining is not none %}<span class="timer" id="timer" data-remaining="{{ remaining }}" role="timer" aria-label="Time remaining"></span>{% endif %}
@@ -46,40 +58,46 @@
   {% if assessment.instructions %}<div class="instructions">{{ assessment.instructions|richtext }}</div>{% endif %}
 
   {% for e in entries %}{% set item = e.item %}{% set q = item.question %}{% set ans = e.answer %}
-  <div class="question" id="q{{ loop.index }}" data-item="{{ item.id }}">
-    <div class="qn" aria-hidden="true">{{ loop.index }}.</div>
+  {% set number = attempt.position + 1 if seq else loop.index %}
+  <div class="question" id="q{{ number }}" data-item="{{ item.id }}">
+    <div class="qn" aria-hidden="true">{{ number }}.</div>
     <div class="qbody">
       <input type="hidden" name="present_{{ item.id }}" value="1">
       <div class="question-head">
-        <div class="meta"><span class="sr-only">Question {{ loop.index }},</span><span>{{ item.effective_points|num }} point{{ 's' if item.effective_points != 1 }}</span>{% if q.qtype == 'ms' %}<span>Select every correct answer</span>{% endif %}</div>
-        <button type="button" class="btn btn-sm flag-btn" data-item="{{ item.id }}">Flag for review</button>
+        <div class="meta"><span class="sr-only">Question {{ number }},</span><span>{{ item.effective_points|num }} point{{ 's' if item.effective_points != 1 }}</span>{% if q.qtype == 'ms' %}<span>Select every correct answer</span>{% endif %}</div>
+        {% if not seq %}<button type="button" class="btn btn-sm flag-btn" data-item="{{ item.id }}">Flag for review</button>{% endif %}
       </div>
       <div class="stem">{{ q.stem|richtext }}</div>
       {% if q.qtype in ('mc', 'tf') %}
-        <div class="choices" role="radiogroup" aria-label="Question {{ loop.index }} answers">
+        <div class="choices" role="radiogroup" aria-label="Question {{ number }} answers">
         {% for c in e.choices %}
         <label class="choice"><input class="sr-only" type="radio" name="q_{{ item.id }}" value="{{ c.id }}" {{ 'checked' if ans == c.id }}>{{ bubble(loop.index0) }}<span class="text">{{ c.text }}</span></label>
         {% endfor %}
         </div>
       {% elif q.qtype == 'ms' %}
-        <div class="choices" role="group" aria-label="Question {{ loop.index }} answers">
+        <div class="choices" role="group" aria-label="Question {{ number }} answers">
         {% for c in e.choices %}
         <label class="choice"><input class="sr-only" type="checkbox" name="q_{{ item.id }}" value="{{ c.id }}" {{ 'checked' if ans and c.id in ans }}>{{ bubble(loop.index0) }}<span class="text">{{ c.text }}</span></label>
         {% endfor %}
         </div>
       {% elif q.qtype == 'short' %}
-        <input type="text" class="answer-input" name="q_{{ item.id }}" value="{{ ans or '' }}" autocomplete="off" aria-label="Your answer to question {{ loop.index }}" style="max-width:32rem">
+        <input type="text" class="answer-input" name="q_{{ item.id }}" value="{{ ans or '' }}" autocomplete="off" aria-label="Your answer to question {{ number }}" style="max-width:32rem">
       {% elif q.qtype == 'numeric' %}
-        <input type="text" class="answer-input" inputmode="decimal" name="q_{{ item.id }}" value="{{ ans or '' }}" autocomplete="off" aria-label="Your numeric answer to question {{ loop.index }}" style="max-width:14rem">
+        <input type="text" class="answer-input" inputmode="decimal" name="q_{{ item.id }}" value="{{ ans or '' }}" autocomplete="off" aria-label="Your numeric answer to question {{ number }}" style="max-width:14rem">
       {% else %}
-        <textarea class="answer-input" name="q_{{ item.id }}" rows="8" aria-label="Your answer to question {{ loop.index }}" spellcheck="true">{{ ans or '' }}</textarea>
+        <textarea class="answer-input" name="q_{{ item.id }}" rows="8" aria-label="Your answer to question {{ number }}" spellcheck="true">{{ ans or '' }}</textarea>
       {% endif %}
     </div>
   </div>
   {% endfor %}
   <div class="submit-row">
+    {% if seq and attempt.position + 1 < total %}
+    <button class="btn btn-primary" type="submit" formaction="{{ url_for('portal.next_question') }}" data-no-confirm>Save and go to question {{ attempt.position + 2 }}</button>
+    <span class="help">You can't come back to this question once you move on.</span>
+    {% else %}
     <button class="btn btn-primary" type="submit">Submit answers</button>
-    <span class="help">You can return to this page until you submit{% if remaining is not none %} or the time runs out{% endif %}. Answers save as you go.</span>
+    <span class="help">{% if seq %}This is the last question.{% else %}You can return to this page until you submit{% if remaining is not none %} or the time runs out{% endif %}.{% endif %} Answers save as you go.</span>
+    {% endif %}
   </div>
 </form>
 {% endblock %}

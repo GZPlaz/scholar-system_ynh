@@ -1,7 +1,7 @@
 {% from "_macros.html" import post_button with context %}
 {%- macro clock(seconds) -%}{% if seconds is none %}—{% else %}{{ '%d:%02d'|format(seconds // 60, seconds % 60) }}{% endif %}{%- endmacro -%}
 {%- macro ago(seconds) -%}{% if seconds is none %}—{% elif seconds < 60 %}just now{% elif seconds < 3600 %}{{ seconds // 60 }} min ago{% else %}{{ seconds // 3600 }} h ago{% endif %}{%- endmacro -%}
-<tbody id="monitor-rows" data-tally="{% for k, v in tally.items() %}{{ k }}={{ v }};{% endfor %}">
+<tbody id="monitor-rows" data-tally="{% for k, v in tally.items() %}{{ k }}={{ v }};{% endfor %}"{% if password %} data-password="{{ password.value }}"{% endif %}>
 {% for r in rows %}{% set u = r.user %}{% set base = url_for('proctor.student_action', assessment_id=assessment.id, user_id=u.id, action='ACTION') %}
 <tr class="{{ 'row-attn' if r.state in ('waiting', 'paused') }}">
   <td>{{ u.display_name }}<div class="small muted">{% if r.no_id %}<span class="badge badge-red">No student ID: can't sign in</span>{% else %}ID {{ u.student_number }}{% endif %}{% if r.no_pin %} <span class="badge badge-red">No PIN</span>{% endif %}{% if not r.enrolled %} <span class="badge">Not enrolled</span>{% endif %}</div></td>
@@ -12,8 +12,10 @@
     {% elif r.state == 'signed in' %}<span class="badge badge-blue">Signed in</span>
     {% elif r.state == 'submitted' %}<span class="badge">Submitted</span>
     {% else %}<span class="badge">Not started</span>{% endif %}
+    {% if r.in_seb %}<div class="small muted">In Safe Exam Browser</div>{% endif %}
+    {% if r.accommodation and (r.accommodation.extra_minutes or r.accommodation.extra_attempts) %}<div class="small muted">{% if r.accommodation.extra_minutes %}+{{ r.accommodation.extra_minutes }} min{% endif %}{% if r.accommodation.extra_minutes and r.accommodation.extra_attempts %}, {% endif %}{% if r.accommodation.extra_attempts %}+{{ r.accommodation.extra_attempts }} attempt{{ 's' if r.accommodation.extra_attempts != 1 }}{% endif %}</div>{% endif %}
   </td>
-  <td class="num">{% if r.live %}{{ r.answered }} / {{ r.total }}{% elif r.counted %}<a href="{{ url_for('assessments.attempt_detail', assessment_id=assessment.id, attempt_id=r.counted.id) }}">{{ r.counted.percent|pct }}</a>{% else %}—{% endif %}</td>
+  <td class="num">{% if r.live %}{{ r.answered }} / {{ r.total }}{% if r.position %}<div class="small muted">on question {{ r.position }}</div>{% endif %}{% elif r.counted %}<a href="{{ url_for('assessments.attempt_detail', assessment_id=assessment.id, attempt_id=r.counted.id) }}">{{ r.counted.percent|pct }}</a>{% else %}—{% endif %}</td>
   <td class="num">{{ clock(r.remaining) if r.live else '—' }}{% if r.live and r.live.extra_minutes %}<div class="small muted">+{{ r.live.extra_minutes }} min</div>{% endif %}</td>
   <td class="num {{ 'attn' if r.focus_losses }}">{{ r.focus_losses if r.live else '—' }}</td>
   <td class="num {{ 'attn' if r.device_changes or r.ip_changes }}">{% if r.live %}{{ r.device_changes }} / {{ r.ip_changes }}{% else %}—{% endif %}</td>
@@ -30,6 +32,14 @@
         <button type="submit" class="btn btn-sm">Add min</button>
       </form>
       {{ post_button(base|replace('ACTION', 'submit'), 'Submit now', cls='btn btn-sm btn-danger', confirm='Submit ' ~ u.display_name ~ "'s test now with their saved answers?") }}
+    {% endif %}
+    {% if not r.live %}
+      <form method="post" action="{{ base|replace('ACTION', 'extra_time') }}" class="inline add-time" title="Extra time on {{ u.display_name }}'s next attempt">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="number" name="minutes" min="0" max="600" value="{{ r.accommodation.extra_minutes if r.accommodation else 0 }}" aria-label="Extra minutes for {{ u.display_name }}">
+        <button type="submit" class="btn btn-sm">Extra min</button>
+      </form>
+      {% if r.attempts %}{{ post_button(base|replace('ACTION', 'allow_attempt'), 'One more attempt', title='Let ' ~ u.display_name ~ ' take the test once more') }}{% endif %}
     {% endif %}
     {% if r.session %}{{ post_button(base|replace('ACTION', 'reset_device'), 'Sign out', confirm='Sign ' ~ u.display_name ~ ' out? They can sign in again on any device.', title='Sign ' ~ u.display_name ~ ' out so they can use another device') }}{% endif %}
     {% if r.live %}<a class="btn btn-sm" href="{{ url_for('assessments.attempt_detail', assessment_id=assessment.id, attempt_id=r.live.id) }}#timeline">Timeline</a>{% endif %}
