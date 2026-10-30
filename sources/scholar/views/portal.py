@@ -1,4 +1,4 @@
-"""The test portal (/test/): where students take tests.
+"""The test portal (the site root): where students take tests.
 
 Students have no account on the staff site. A student enters the assessment's test code and
 their student ID, confirms who they are (and types their PIN when the assessment asks for it),
@@ -57,7 +57,7 @@ from ..security import (
 from ..taking import ordered_entries, remaining_seconds, review_entries, store_form_answers
 from ..utils import log_event
 
-bp = Blueprint("portal", __name__, url_prefix="/test")
+bp = Blueprint("portal", __name__)
 
 LIVE = ("waiting", "ready")  # statuses of a session that is in use
 FOCUS_EVENTS = {"focus_lost", "fullscreen_exit"}

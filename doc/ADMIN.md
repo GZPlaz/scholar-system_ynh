@@ -7,12 +7,14 @@
 
 ### Who can reach the app
 
-- The **staff site** (everything except `/test`) follows the main permission. With **visitors** (default), local staff accounts can sign in; with **all_users** (or a group) only YunoHost users reach it. YunoHost users already signed into the portal are logged in automatically.
-- The **test portal** (`https://__DOMAIN____PATH__/test/`) has its own permission, always open to visitors, because students have no YunoHost account. It never accepts a staff session, and students can never sign in to the staff site.
+- The **test portal** is the front page, `https://__DOMAIN____PATH__/`. The main permission is always open to visitors, because students have no YunoHost account. It never accepts a staff session, and students can never sign in to the staff site.
+- The **staff site** is `https://__DOMAIN____PATH__/staff`, with its own YunoHost permission and portal tile (`staff`). With **visitors** (default), local staff accounts can sign in; set it to **all_users** (or a group) in the YunoHost admin to restrict it to YunoHost users. YunoHost users already signed into the portal are logged in automatically.
+- The integration API stays at `https://__DOMAIN____PATH__/api/v1` (its own `api` permission), so connected systems don't depend on the staff layout.
+- Addresses used before version 1.5 (`/courses/…`, `/login`, `/test/…`) redirect to the new ones, so bookmarks keep working. Students who downloaded an assessment's Safe Exam Browser file before 1.5 need the new file (its start page changed): the portal offers it.
 
 ### Test portal and test security
 
-1. A student opens `/test/`, types the assessment's **test code** (on the Proctor tab; regenerate it any time) and their **student ID**.
+1. A student opens the front page, types the assessment's **test code** (on the Proctor tab; regenerate it any time) and their **student ID**.
 2. Scholar shows the first name and last initial for that ID; the student confirms it's them. If the assessment asks for a **PIN**, they type their personal PIN too. Give out PINs from the course roster (**Test-portal PINs**): they are stored hashed and shown once, on printable slips.
 3. If the assessment requires **proctor admission**, the student waits until a proctor lets them in on the **Proctor** tab.
 
@@ -30,7 +32,7 @@ Further options, per assessment:
 
 ### Lockdown browser (Safe Exam Browser)
 
-Choose **Require Safe Exam Browser** under **Settings → Lockdown browser**. Scholar then generates the SEB settings file for the assessment (`/test/seb/<test code>.seb`): start page, full screen, no spell check, no right click or screenshots, no virtual machines, cookies cleared at start and end, and an optional **quit password** for proctors.
+Choose **Require Safe Exam Browser** under **Settings → Lockdown browser**. Scholar then generates the SEB settings file for the assessment (`/seb/<test code>.seb`): start page, full screen, no spell check, no right click or screenshots, no virtual machines, cookies cleared at start and end, and an optional **quit password** for proctors.
 
 Students who open the test in an ordinary browser see instructions and an "Open in Safe Exam Browser" button that launches SEB with these settings (they install SEB once from safeexambrowser.org). Inside SEB they enter the code and student ID again.
 
@@ -38,7 +40,7 @@ Every request is checked against the settings' **Config Key**, computed as the S
 
 Limits: Chromebooks can't run SEB. The Config Key proves the settings, not the SEB program itself, and the settings file is downloadable by anyone with the test code, so a determined, technical student could imitate it. For more assurance, add the **Browser Exam Keys** of your exam computers (shown in SEB's settings tool) under "Also accept these keys" and tick **Accept only these keys**, so the generated key alone no longer opens the test; and keep a proctor in the room.
 
-What the server enforces regardless of the browser: the time limit and closing time, the attempt limit, network allowlist, late start, one device per attempt, PIN throttling (5 wrong PINs per student per 15 minutes) and code/ID guessing limits (60 per network per 15 minutes; classrooms share an address, so this never bans anyone at the firewall). Portal sessions are random tokens stored hashed, rotated after the identity check, bound to the browser, in an HttpOnly SameSite=Strict cookie limited to `/test`, with a strict Content Security Policy.
+What the server enforces regardless of the browser: the time limit and closing time, the attempt limit, network allowlist, late start, one device per attempt, PIN throttling (5 wrong PINs per student per 15 minutes) and code/ID guessing limits (60 per network per 15 minutes; classrooms share an address, so this never bans anyone at the firewall). Portal sessions are random tokens stored hashed, rotated after the identity check, bound to the browser, in an HttpOnly SameSite=Strict cookie, with a strict Content Security Policy.
 
 What the browser reports (full screen, leaving the page, copy/paste attempts) is recorded and counted on the server; past the limit the server pauses the attempt. A browser can't prove that nobody uses a second device, so for high-stakes exams combine these settings with a proctor in the room, proctor admission and PINs.
 

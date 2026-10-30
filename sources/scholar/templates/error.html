@@ -4,5 +4,6 @@
 {% block content %}
 <div class="page-head"><div><p class="facts"><span>Error {{ code }}</span></p><h1>{{ title }}</h1></div></div>
 <p>{{ message }}</p>
-<a class="btn btn-primary" href="{{ url_for('main.dashboard') }}">Back to the dashboard</a>
+{% if home == 'portal' %}<a class="btn btn-primary" href="{{ url_for('portal.enter') }}">Back to the start</a>
+{% else %}<a class="btn btn-primary" href="{{ url_for('main.dashboard') }}">Back to the dashboard</a>{% endif %}
 {% endblock %}

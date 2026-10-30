@@ -15,7 +15,7 @@ def utcnow():
 ROLES = {"admin": "Administrator", "instructor": "Instructor", "student": "Student"}
 
 # Students never sign in to the staff site: they are test takers who identify themselves in the
-# test portal (/test/) with an assessment's test code and their student ID (plus a PIN if asked).
+# test portal (the site root) with an assessment's test code and their student ID (plus a PIN if asked).
 IDENTITY_CHECKS = {
     "confirm": "Student confirms their name",
     "pin": "Student confirms their name and enters their personal PIN",

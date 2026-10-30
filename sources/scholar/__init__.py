@@ -11,7 +11,8 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from .config import build_config
 from .extensions import csrf, db, login_manager
 
-__version__ = "1.4.0"
+__version__ = "1.5.0"
+STAFF_PREFIX = "/staff"
 # 2: answer_sheets, sheet_scans; 3: api_tokens, users/courses.external_id;
 # 4: test portal (test_sessions, attempt_events, portal_failures, PINs, security settings);
 # 5: lockdown browser, access passwords, one sitting, restricted navigation, accommodations
@@ -58,10 +59,16 @@ def create_app(overrides=None):
         app.wsgi_app = PrefixMiddleware(app.wsgi_app, app.config["APP_PREFIX"])
 
     from . import auth
-    from .views import admin, api, assessments, courses, main, portal, proctor, questions, reports, scans, standards
+    from .views import admin, api, assessments, courses, legacy, main, portal, proctor, questions, reports, scans, standards
 
-    for module in (auth, main, admin, courses, standards, questions, assessments, proctor, scans, reports, api, portal):
-        app.register_blueprint(module.bp)
+    # The site root is the student test portal; everything for instructors and administrators
+    # lives under /staff. The integration API keeps its own /api/v1 so connected systems
+    # (the RosarioSIS plugin) don't depend on the staff layout.
+    for module in (auth, main, admin, courses, standards, questions, assessments, proctor, scans, reports):
+        app.register_blueprint(module.bp, url_prefix=STAFF_PREFIX + (module.bp.url_prefix or ""))
+    app.register_blueprint(api.bp)
+    app.register_blueprint(portal.bp)
+    app.register_blueprint(legacy.bp)
 
     app.before_request(auth.try_sso_login)
     app.before_request(auth.keep_students_out)
@@ -81,7 +88,9 @@ def create_app(overrides=None):
             response.headers["Cache-Control"] = "no-store, max-age=0"
             response.headers["Pragma"] = "no-cache"
             response.headers["X-Frame-Options"] = "DENY"
-            response.headers["Referrer-Policy"] = "no-referrer"
+            # Not "no-referrer": over HTTPS the form protection rejects a POST without a Referer
+            # ("The referrer header is missing"). Same-origin still sends nothing to other sites.
+            response.headers["Referrer-Policy"] = "same-origin"
             response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
             response.headers["Content-Security-Policy"] = (
                 "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
@@ -151,7 +160,8 @@ def _register_template_helpers(app):
 
 def _register_error_handlers(app):
     def render_error(code, title, message):
-        return render_template("error.html", code=code, title=title, message=message), code
+        home = "portal" if (request.endpoint or "").startswith("portal.") else "staff"
+        return render_template("error.html", code=code, title=title, message=message, home=home), code
 
     app.register_error_handler(403, lambda e: render_error(403, "Access denied", "You don't have permission to view this page."))
     app.register_error_handler(404, lambda e: render_error(404, "Not found", "The page you requested does not exist."))
@@ -347,4 +357,4 @@ def _register_cli(app):
         from .demo import seed
 
         seed()
-        click.echo("Demo data loaded. Students take tests in the test portal (/test/) with the test code and their student ID.")
+        click.echo("Demo data loaded. Students take tests in the test portal (the site root) with the test code and their student ID.")

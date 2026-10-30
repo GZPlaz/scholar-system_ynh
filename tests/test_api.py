@@ -147,18 +147,18 @@ def test_deactivating_students_who_left(app):
 def test_admin_creates_and_revokes_tokens(app):
     c = app.test_client()
     login(c, "admin", "adminpass123")
-    r = c.post("/admin/integrations", data={"action": "create", "name": "RosarioSIS"})
+    r = c.post("/staff/admin/integrations", data={"action": "create", "name": "RosarioSIS"})
     assert b"Copy this token now" in r.data
     secret = re.search(rb"sch_[A-Za-z0-9_-]{20,}", r.data).group(0).decode()
     assert secret.startswith("sch_") and c.get("/api/v1/ping", headers=auth(secret)).status_code == 200
     with app.app_context():
         tid = ApiToken.query.one().id
-    c.post("/admin/integrations", data={"action": "revoke", "token_id": tid})
+    c.post("/staff/admin/integrations", data={"action": "revoke", "token_id": tid})
     assert c.get("/api/v1/ping", headers=auth(secret)).status_code == 401
     login(app.test_client(), "demo.instructor", "instructor123")
     other = app.test_client()
     login(other, "demo.instructor", "instructor123")
-    assert other.get("/admin/integrations").status_code == 403
+    assert other.get("/staff/admin/integrations").status_code == 403
 
 
 def test_upgrade_adds_external_id_columns(tmp_path):

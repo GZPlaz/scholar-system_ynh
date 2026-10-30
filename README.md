@@ -10,7 +10,7 @@ Scholar System is a self-hosted testing platform in the spirit of Mastery Manage
 
 - **Question bank** — multiple choice, multiple select, true/false, short answer, numeric and essay questions, aligned to standards / learning outcomes, shared between instructors, CSV import.
 - **Assessments** — availability windows, time limits, attempt limits, access codes, shuffling, results-release policy.
-- **Separate test portal for students** (`/test/`) — students have no account: they enter the test code and their student ID, confirm who they are (optionally with a personal PIN), and take the test. The staff site (`/courses`, …) is for instructors and administrators only.
+- **Separate test portal for students** (the site root, e.g. `quiz.example.org/`) — students have no account: they enter the test code and their student ID, confirm who they are (optionally with a personal PIN), and take the test. Everything for instructors and administrators lives under `/staff` (`quiz.example.org/staff`).
 - **Online testing** — autosave, server-enforced timer with auto-submit, question navigator, flag for review.
 - **Lockdown browser** — an assessment can require [Safe Exam Browser](https://safeexambrowser.org) (Windows, macOS, iPad). Scholar generates the SEB settings file for the test and lets a browser in only when it proves (Config Key, per the SEB specification; request headers on Windows, the SEB JavaScript API on macOS/iPad) that it runs exactly those settings. Optional quit password and extra keys.
 - **Test security, set per assessment** — rotating test codes, PIN identity check with a proctor override, a password to begin (fixed, or rotating every few minutes on the proctor's screen), proctor admission, one device per attempt, complete in one sitting, restricted question navigation (one at a time, no going back), full-screen requirement, copy/paste/print blocking, a name watermark, pausing after the student leaves the test too often (with a grace period and a warning on return), stopping the clock while paused, network (IP range) allowlists and a late-start limit; per-student extra time and extra attempts. A live **Proctor** page lets instructors admit, pause, resume, add time, force-submit and move students between devices; every event lands in the attempt's integrity timeline.
@@ -37,7 +37,8 @@ The interface is modelled on the paperwork of the exam room: answer sheets print
 | LDAP (YunoHost accounts) | ✅ sign in with the YunoHost username/password |
 | SSO (SSOwat) | ✅ users signed into the portal are logged in automatically |
 | Local accounts | ✅ for staff without a YunoHost account |
-| Student test portal | ✅ `/test/`, always public (own permission); students need no account |
+| Student test portal | ✅ the site root, always public; students need no account |
+| Staff site | ✅ `/staff` (own YunoHost permission and portal tile) |
 | Backup / restore | ✅ (PostgreSQL dump + install dir) |
 | Change URL | ✅ |
 | fail2ban | ✅ failed sign-ins are banned |

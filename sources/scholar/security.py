@@ -153,7 +153,7 @@ def new_token():
 
 
 def cookie_path():
-    return (current_app.config.get("APP_PREFIX") or "") + "/test"
+    return current_app.config.get("APP_PREFIX") or "/"
 
 
 def set_portal_cookie(response, token):

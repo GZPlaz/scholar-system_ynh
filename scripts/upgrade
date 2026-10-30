@@ -51,6 +51,11 @@ ynh_script_progression "Updating configuration..."
 _scholar_add_configs
 _scholar_set_permissions
 
+# From 1.5.0 the site root is the student test portal and must be public (staff sign in at /staff).
+if ! ynh_permission_has_user --permission="main" --user="visitors"; then
+    ynh_permission_update --permission="main" --add="visitors"
+fi
+
 ynh_script_progression "Upgrading the database schema..."
 
 _scholar_manage upgrade-db

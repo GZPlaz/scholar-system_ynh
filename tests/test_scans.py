@@ -34,7 +34,7 @@ def correct_marks(layout, assessment, write=True):
 
 def upload(client, aid, photo, name="sheet.jpg"):
     r = client.post(
-        f"/assessments/{aid}/scans/upload",
+        f"/staff/assessments/{aid}/scans/upload",
         data={"photos": (io.BytesIO(photo), name)},
         content_type="multipart/form-data",
         headers={"Accept": "application/json"},
@@ -47,9 +47,9 @@ def test_print_creates_one_sheet_per_student(app):
     client = app.test_client()
     login(client, "demo.instructor", "instructor123")
     aid, _ = demo(app)
-    r = client.get(f"/assessments/{aid}/bubble-sheets")
+    r = client.get(f"/staff/assessments/{aid}/bubble-sheets")
     assert r.status_code == 200 and r.data.count(b'class="omr-sheet"') == 8
-    client.get(f"/assessments/{aid}/bubble-sheets")  # printing again reuses the same sheet ids
+    client.get(f"/staff/assessments/{aid}/bubble-sheets")  # printing again reuses the same sheet ids
     with app.app_context():
         assert AnswerSheet.query.filter_by(assessment_id=aid).count() == 8
 
@@ -58,7 +58,7 @@ def test_scan_with_write_ins_goes_to_review_then_records(app):
     client = app.test_client()
     login(client, "demo.instructor", "instructor123")
     aid, _ = demo(app)
-    client.get(f"/assessments/{aid}/bubble-sheets")
+    client.get(f"/staff/assessments/{aid}/bubble-sheets")
     with app.app_context():
         student = User.query.filter_by(username="demo.student8").one()
         sheet = AnswerSheet.query.filter_by(assessment_id=aid, user_id=student.id).one()
@@ -88,7 +88,7 @@ def test_blank_sheet_needs_a_student_and_garbage_fails(app):
     client = app.test_client()
     login(client, "demo.instructor", "instructor123")
     aid, _ = demo(app)
-    client.get(f"/assessments/{aid}/bubble-sheets?blank=1")
+    client.get(f"/staff/assessments/{aid}/bubble-sheets?blank=1")
     with app.app_context():
         sheet = AnswerSheet.query.filter_by(assessment_id=aid, user_id=None).one()
         layout = sheet.get_layout()
@@ -109,9 +109,9 @@ def test_sheet_from_another_assessment_is_rejected(app):
     client = app.test_client()
     login(client, "demo.instructor", "instructor123")
     aid, cid = demo(app)
-    r = client.post("/assessments/new", data={"course_id": cid, "title": "Quiz 9", "max_attempts": "1", "show_results": "immediately", "allow_online": "1"})
+    r = client.post("/staff/assessments/new", data={"course_id": cid, "title": "Quiz 9", "max_attempts": "1", "show_results": "immediately", "allow_online": "1"})
     other = int(r.headers["Location"].rstrip("/").split("/")[-1])
-    client.get(f"/assessments/{aid}/bubble-sheets")
+    client.get(f"/staff/assessments/{aid}/bubble-sheets")
     with app.app_context():
         sheet = AnswerSheet.query.filter_by(assessment_id=aid).first()
         photo = fake_photo(render_sheet(sheet.get_layout(), sheet.id, {}), seed=9)
@@ -135,7 +135,7 @@ def test_multi_page_sheets_merge_into_one_attempt(app):
         assert len(omr.plan_pages(a)) == 2
     client = app.test_client()
     login(client, "demo.instructor", "instructor123")
-    r = client.get(f"/assessments/{aid}/bubble-sheets")
+    r = client.get(f"/staff/assessments/{aid}/bubble-sheets")
     assert r.data.count(b'class="omr-sheet"') == 16
     with app.app_context():
         student = User.query.filter_by(username="demo.student2").one()
@@ -150,7 +150,7 @@ def test_multi_page_sheets_merge_into_one_attempt(app):
         sid = student.id
     statuses = [upload(client, aid, p)["status"] for p in reversed(photos)]  # order doesn't matter
     assert statuses == ["ready", "ready"]
-    r = client.post(f"/assessments/{aid}/scans/record-ready", follow_redirects=True)
+    r = client.post(f"/staff/assessments/{aid}/scans/record-ready", follow_redirects=True)
     assert b"Recorded 2 sheet(s)" in r.data
     with app.app_context():
         attempt = Attempt.query.filter_by(assessment_id=aid, user_id=sid, source="paper").one()
@@ -161,7 +161,7 @@ def test_rescanning_a_page_replaces_the_unrecorded_photo(app):
     client = app.test_client()
     login(client, "demo.instructor", "instructor123")
     aid, _ = demo(app)
-    client.get(f"/assessments/{aid}/bubble-sheets")
+    client.get(f"/staff/assessments/{aid}/bubble-sheets")
     with app.app_context():
         sheet = AnswerSheet.query.filter_by(assessment_id=aid).first()
         photo = fake_photo(render_sheet(sheet.get_layout(), sheet.id, {}), seed=1)
@@ -170,8 +170,8 @@ def test_rescanning_a_page_replaces_the_unrecorded_photo(app):
     with app.app_context():
         assert db.session.get(SheetScan, first["id"]).status == "replaced"
         assert db.session.get(SheetScan, second["id"]).status in ("ready", "review")
-    assert client.get(f"/assessments/{aid}/scans").status_code == 200
-    assert client.get(f"/assessments/{aid}/scans/{second['id']}/image").mimetype == "image/jpeg"
+    assert client.get(f"/staff/assessments/{aid}/scans").status_code == 200
+    assert client.get(f"/staff/assessments/{aid}/scans/{second['id']}/image").mimetype == "image/jpeg"
 
 
 def test_sheet_code_round_trip():
