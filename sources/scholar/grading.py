@@ -131,13 +131,13 @@ def regrade_assessment(assessment, keep_manual=True):
 def start_attempt(assessment, user, source="online", entered_by=None):
     previous = Attempt.query.filter_by(assessment_id=assessment.id, user_id=user.id).count()
     item_ids = [item.id for item in assessment.items]
-    if assessment.shuffle_questions and source == "online":
+    if assessment.shuffle_questions and source == "online" and not assessment.pdf:  # a PDF's numbering is fixed
         random.shuffle(item_ids)
     choice_order = {}
     for item in assessment.items:
         if item.question.has_choices:
             ids = [c.id for c in item.question.choices]
-            if assessment.shuffle_choices and source == "online" and item.question.qtype != "tf":
+            if assessment.shuffle_choices and source == "online" and item.question.qtype != "tf" and not assessment.pdf:
                 random.shuffle(ids)
             choice_order[str(item.id)] = ids
     now = utcnow()

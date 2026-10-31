@@ -11,12 +11,13 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from .config import build_config
 from .extensions import csrf, db, login_manager
 
-__version__ = "1.6.0"
+__version__ = "1.7.0"
 STAFF_PREFIX = "/staff"
 # 2: answer_sheets, sheet_scans; 3: api_tokens, users/courses.external_id;
 # 4: test portal (test_sessions, attempt_events, portal_failures, PINs, security settings);
-# 5: lockdown browser, access passwords, one sitting, restricted navigation, accommodations
-SCHEMA_VERSION = 5
+# 5: lockdown browser, access passwords, one sitting, restricted navigation, accommodations;
+# 6: tests made from a PDF (assessment_pdfs, assessment_pdf_pages)
+SCHEMA_VERSION = 6
 
 
 class PrefixMiddleware:
@@ -59,12 +60,12 @@ def create_app(overrides=None):
         app.wsgi_app = PrefixMiddleware(app.wsgi_app, app.config["APP_PREFIX"])
 
     from . import auth
-    from .views import admin, api, assessments, courses, legacy, main, portal, proctor, questions, reports, scans, standards
+    from .views import admin, api, assessments, courses, legacy, main, pdftests, portal, proctor, questions, reports, scans, standards
 
     # The site root is the student test portal; everything for instructors and administrators
     # lives under /staff. The integration API keeps its own /api/v1 so connected systems
     # (the RosarioSIS plugin) don't depend on the staff layout.
-    for module in (auth, main, admin, courses, standards, questions, assessments, proctor, scans, reports):
+    for module in (auth, main, admin, courses, standards, questions, assessments, pdftests, proctor, scans, reports):
         app.register_blueprint(module.bp, url_prefix=STAFF_PREFIX + (module.bp.url_prefix or ""))
     app.register_blueprint(api.bp)
     app.register_blueprint(portal.bp)

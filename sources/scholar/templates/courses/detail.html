@@ -2,7 +2,7 @@
 {% from "_macros.html" import course_tabs, status_badge with context %}
 {% block title %}{{ course.code }}{% endblock %}
 {% block content %}
-{% call course_tabs(course, 'overview') %}<a class="btn btn-primary" href="{{ url_for('assessments.new', course_id=course.id) }}">Create an assessment</a>{% endcall %}
+{% call course_tabs(course, 'overview') %}<a class="btn" href="{{ url_for('pdftests.new_from_pdf', course_id=course.id) }}">From a PDF</a> <a class="btn btn-primary" href="{{ url_for('assessments.new', course_id=course.id) }}">Create an assessment</a>{% endcall %}
 {% if course.description %}<div class="mb0" style="max-width:70ch; margin-bottom: var(--s5)">{{ course.description|richtext }}</div>{% endif %}
 <div class="table-wrap">
 <table class="table">
@@ -21,7 +21,7 @@
     <td class="right nowrap"><a class="btn btn-sm" href="{{ url_for('assessments.results', assessment_id=a.id) }}">Results</a></td>
   </tr>
   {% else %}
-  <tr><td colspan="9" class="empty">No assessments yet. <a href="{{ url_for('assessments.new', course_id=course.id) }}">Create one</a>.</td></tr>
+  <tr><td colspan="9" class="empty">No assessments yet. <a href="{{ url_for('assessments.new', course_id=course.id) }}">Create one</a>, or <a href="{{ url_for('pdftests.new_from_pdf', course_id=course.id) }}">upload a test as a PDF</a> and type in the answers.</td></tr>
   {% endfor %}
   </tbody>
 </table>

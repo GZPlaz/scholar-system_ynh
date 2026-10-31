@@ -96,6 +96,7 @@
 </div>
 <nav class="tabs" aria-label="Assessment">
   <a href="{{ url_for('assessments.detail', assessment_id=assessment.id) }}" class="{{ 'active' if active == 'builder' }}">Questions</a>
+  {% if assessment.pdf %}<a href="{{ url_for('pdftests.key', assessment_id=assessment.id) }}" class="{{ 'active' if active == 'key' }}">Answer key</a>{% endif %}
   <a href="{{ url_for('proctor.monitor', assessment_id=assessment.id) }}" class="{{ 'active' if active == 'monitor' }}">Proctor</a>
   <a href="{{ url_for('assessments.results', assessment_id=assessment.id) }}" class="{{ 'active' if active == 'results' }}">Results</a>
   <a href="{{ url_for('assessments.insights', assessment_id=assessment.id) }}" class="{{ 'active' if active == 'insights' }}">Analytics</a>

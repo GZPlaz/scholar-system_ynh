@@ -47,6 +47,7 @@ from ..utils import (
     staff_required,
 )
 from ..lockdown import hash_quit_password
+from .. import pdftest
 from ..security import ensure_code, generate_code, normalize_code, parse_networks, validate_custom_code
 from .questions import visible_questions_query
 
@@ -184,6 +185,8 @@ def _apply_settings(assessment, form):
         assessment.bypass_password_hash = ""
     assessment.one_sitting = parse_bool(form.get("one_sitting", ""))
     assessment.sequential = parse_bool(form.get("sequential", ""))
+    if assessment.pdf is not None:  # questions and answers keep the PDF's order and letters
+        assessment.shuffle_questions = assessment.shuffle_choices = assessment.sequential = False
     assessment.focus_grace_seconds = grace
     assessment.clock_stops_when_paused = parse_bool(form.get("clock_stops_when_paused", ""))
     return []
@@ -278,6 +281,8 @@ def detail(assessment_id):
     return render_template(
         "assessments/detail.html",
         assessment=assessment,
+        pdf_rows=pdftest.key_rows(assessment) if assessment.pdf is not None else None,
+        pdf_types=pdftest.KEY_TYPES,
         bank=bank,
         filters=filters,
         standards=standards,
@@ -295,6 +300,9 @@ def detail(assessment_id):
 @staff_required
 def add_items(assessment_id):
     assessment = get_assessment(assessment_id)
+    if assessment.pdf is not None:
+        flash("This test comes from a PDF: its questions are the numbered questions in the PDF. Use the answer key page.", "error")
+        return redirect(url_for("pdftests.key", assessment_id=assessment.id))
     if assessment.is_locked:
         flash("Students have already started this assessment; its questions can no longer change.", "error")
         return redirect(url_for("assessments.detail", assessment_id=assessment.id))
@@ -321,6 +329,9 @@ def item_action(assessment_id, item_id, action):
     item = db.session.get(AssessmentItem, item_id)
     if item is None or item.assessment_id != assessment.id:
         abort(404)
+    if assessment.pdf is not None:
+        flash("Points and the question list of a PDF test are set on the answer key page.", "error")
+        return redirect(url_for("pdftests.key", assessment_id=assessment.id))
     if action == "points":
         value = request.form.get("points", "").strip()
         points = parse_float(value) if value else None
@@ -431,8 +442,11 @@ def duplicate(assessment_id):
     db.session.add(copy)
     copy.course = course
     copy.owner = current_user
-    for item in source.items:
-        copy.items.append(AssessmentItem(question_id=item.question_id, position=item.position, points=item.points))
+    if source.pdf is not None:
+        pdftest.clone_pdf(source, copy, current_user)  # its own questions: a key must never be shared
+    else:
+        for item in source.items:
+            copy.items.append(AssessmentItem(question_id=item.question_id, position=item.position, points=item.points))
     log_event("assessment.duplicated", f"#{source.id} -> {course.code}")
     db.session.commit()
     flash("Assessment duplicated as a draft (dates were cleared).", "success")
@@ -448,7 +462,10 @@ def delete(assessment_id):
         flash("This assessment has student results. Type its exact title to confirm deletion.", "error")
         return redirect(url_for("assessments.detail", assessment_id=assessment.id))
     log_event("assessment.deleted", f"#{assessment.id} {assessment.title}")
+    pdf_questions = [i.question for i in assessment.items] if assessment.pdf is not None else []
     db.session.delete(assessment)
+    db.session.flush()
+    pdftest.forget_questions(pdf_questions)
     db.session.commit()
     flash("Assessment deleted.", "success")
     return redirect(url_for("courses.detail", course_id=course_id))
@@ -459,7 +476,10 @@ def delete(assessment_id):
 def preview(assessment_id):
     assessment = get_assessment(assessment_id)
     entries = [{"item": item, "choices": item.question.choices, "answer": None} for item in assessment.items]
-    return render_template("portal/take.html", assessment=assessment, attempt=None, entries=entries, preview=True, remaining=None, student=None)
+    page_url = lambda n: url_for("pdftests.page", assessment_id=assessment.id, number=n)  # noqa: E731
+    return render_template(
+        "portal/take.html", assessment=assessment, attempt=None, entries=entries, preview=True, remaining=None, student=None, page_url=page_url
+    )
 
 
 # --------------------------------------------------------------------------- results

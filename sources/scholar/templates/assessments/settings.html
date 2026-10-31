@@ -4,7 +4,7 @@
 {% block content %}
 {% if assessment %}{{ assessment_tabs(assessment, 'settings') }}{% else %}
 <div class="breadcrumb"><a href="{{ url_for('courses.detail', course_id=course.id) }}">{{ course.code }}</a></div>
-<div class="page-head"><h1>New assessment</h1><p class="facts">{{ course.label }}</p></div>{% endif %}
+<div class="page-head"><div><h1>New assessment</h1><p class="facts">{{ course.label }}</p></div><div class="actions"><a class="btn" href="{{ url_for('pdftests.new_from_pdf', course_id=course.id) }}">Start from a PDF instead</a></div></div>{% endif %}
 {% macro val(name, default='') -%}{{ form.get(name, default) if form is not none else default }}{%- endmacro %}
 {% macro checked(name, current) -%}{{ 'checked' if (form.get(name) if form is not none else current) }}{%- endmacro %}
 {% set a = assessment %}
@@ -78,6 +78,7 @@
   <div>
     <div class="section">
       <h3>Delivery</h3>
+      {% if a and a.pdf %}<p class="small muted">This test is a PDF: question order and answer letters stay as printed, so shuffling and one-question-at-a-time are off.</p>{% endif %}
       <label class="check"><input type="checkbox" name="shuffle_questions" value="1" {{ checked('shuffle_questions', a.shuffle_questions if a else False) }}> Shuffle question order per student</label>
       <label class="check"><input type="checkbox" name="shuffle_choices" value="1" {{ checked('shuffle_choices', a.shuffle_choices if a else False) }}> Shuffle answer options</label>
       <label class="check"><input type="checkbox" name="sequential" value="1" {{ checked('sequential', a.sequential if a else False) }}> Restrict question navigation: one question at a time, no going back</label>

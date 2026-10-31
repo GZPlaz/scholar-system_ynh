@@ -44,6 +44,16 @@ What the server enforces regardless of the browser: the time limit and closing t
 
 What the browser reports (full screen, leaving the page, copy/paste attempts) is recorded and counted on the server; past the limit the server pauses the attempt. A browser can't prove that nobody uses a second device, so for high-stakes exams combine these settings with a proctor in the room, proctor admission and PINs.
 
+### Tests from a PDF
+
+On a course page choose **From a PDF** (or *Create an assessment → Start from a PDF instead*). Upload the test exactly as you have it (up to 25 MB and 60 pages, not password-protected), give it a title and a guess of how many questions it has.
+
+On the **Answer key** page the PDF is on the left and one row per question on the right. The fastest way is **Paste the answers**: type or paste the key as `1.B 2.D 3.A`, as lines (`1 B`), or just the letters in order (`BDACCBAD` or `B D A C C`). `AC` means “select all: A and C”, `T`/`F` are true/false, a number becomes a number question and a word a short-answer question. Scholar picks each row's type for you; you can also tap the correct letter, change a row's type (one answer, select all, true/false, a number with an allowed error, a word or phrase with several accepted spellings separated by `|`, or graded by hand) and give questions different points. Save, check the key against the PDF, publish.
+
+Students see the PDF pages as images beside their answer bubbles in the test portal. They never receive the PDF file, the pages are served only while their attempt is running (not when it is paused or finished), and the watermark and the other security settings apply. For a paper test, **Paper and printing** gives the PDF to print and the usual answer sheets to scan.
+
+Things to know: question order and answer letters follow the PDF, so shuffling and one-question-at-a-time are off for these tests; to change the questions you use the Answer key page (not the question bank); once students have started you can still correct answers and points (everyone is re-scored) but not add, remove or retype questions; *Replace the PDF* keeps the key; copies of a PDF test get their own key.
+
 ### Scanning answer sheets
 
 Scanning uses OpenCV, which installs from prebuilt packages on x86_64 and 64-bit ARM servers. On 32-bit ARM (armhf) it is skipped: the app works normally and paper answers are typed in instead.

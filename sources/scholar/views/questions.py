@@ -229,12 +229,18 @@ def _form_state(question, form, qtype_default="mc"):
 @staff_required
 def edit(question_id=None):
     question = get_question(question_id, edit=True) if question_id else None
+    if question is not None and (question.topic or "").startswith("PDF: ") and question.items:
+        flash("This question belongs to a test made from a PDF: change it on the answer key page.", "error")
+        return redirect(url_for("pdftests.key", assessment_id=question.items[0].assessment_id))
     assessment = None
     assessment_id = parse_int(request.values.get("assessment_id"))
     if assessment_id:
         assessment = db.session.get(Assessment, assessment_id)
         if assessment is None or not can_manage_course(assessment.course):
             abort(403)
+        if assessment.pdf is not None:  # its questions are the PDF's numbered questions: edit the answer key
+            flash("This test comes from a PDF: change its questions on the answer key page.", "error")
+            return redirect(url_for("pdftests.key", assessment_id=assessment.id))
     standards = Standard.query.filter_by(active=True).order_by(Standard.code).all()
     if question:
         standards = sorted(set(standards) | set(question.standards), key=lambda s: s.code)

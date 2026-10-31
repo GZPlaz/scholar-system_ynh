@@ -25,11 +25,21 @@
 <div>
   <section class="section" id="items">
     <div class="section-head"><h2>Questions</h2>
-      {% if not assessment.is_locked %}<div class="actions">
+      {% if assessment.pdf %}<div class="actions"><a class="btn btn-sm btn-primary" href="{{ url_for('pdftests.key', assessment_id=assessment.id) }}">Edit the answer key</a></div>
+      {% elif not assessment.is_locked %}<div class="actions">
         <a class="btn btn-sm" href="{{ url_for('assessments.detail', assessment_id=assessment.id, bank=1) }}#bank">Add from the bank</a>
         <a class="btn btn-sm btn-primary" href="{{ url_for('questions.edit', assessment_id=assessment.id) }}">Write a new question</a>
       </div>{% endif %}</div>
     {% if assessment.is_locked %}<p class="small muted">Students have started this assessment, so questions can't be added, removed or reordered. You can still correct question text, answer keys and point values; submitted attempts are re-scored automatically.</p>{% endif %}
+    {% if assessment.pdf %}
+    <p class="small">This test is the PDF <strong>{{ assessment.pdf.filename }}</strong> ({{ assessment.pdf.pages }} page{{ 's' if assessment.pdf.pages != 1 }}). Its questions are the numbered questions in the PDF; set their types and correct answers on the <a href="{{ url_for('pdftests.key', assessment_id=assessment.id) }}">answer key page</a>.</p>
+    {% if pdf_rows %}
+    <div class="table-wrap"><table class="table compact">
+      <thead><tr><th class="num">#</th><th>Question is</th><th>Correct answer</th><th class="num">Points</th></tr></thead>
+      <tbody>{% for r in pdf_rows %}<tr><td class="num">{{ r.n }}</td><td>{{ pdf_types[r.type] }}</td><td>{% if r.type == 'essay' %}<span class="muted">graded by hand</span>{% else %}<strong>{{ r.answer or '—' }}</strong>{% endif %}</td><td class="num">{{ r.points|num }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% else %}<p class="empty">No answers entered yet. <a href="{{ url_for('pdftests.key', assessment_id=assessment.id) }}">Enter the answer key</a>.</p>{% endif %}
+    {% else %}
     {% for item in assessment.items %}{% set q = item.question %}
     <div class="question">
       <div class="qn">{{ loop.index }}.</div>
@@ -56,6 +66,7 @@
     {% else %}
     <p class="empty">No questions yet. Add some from the question bank or write new ones.</p>
     {% endfor %}
+    {% endif %}
   </section>
 
   {% if bank is not none %}

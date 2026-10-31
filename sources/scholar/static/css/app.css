@@ -571,3 +571,33 @@ body.scanner-open { overflow: hidden; }
 .scan-note { display: block; }
 .scan-queue.scanner-results li { display: block; }
 [hidden] { display: none !important; }
+
+/* ---------------------------------------------------------------- tests made from a PDF */
+.pdf-body { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr); gap: var(--s5); align-items: start; }
+.pdf-pages img { display: block; width: 100%; height: auto; margin: 0 0 var(--s2); border: 1px solid var(--rule-strong); background: #fff; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.pdf-answers { position: sticky; top: 4.5rem; max-height: calc(100vh - 5.5rem); overflow-y: auto; padding-right: var(--s2); }
+.pdf-answers-title { font-size: 1.1rem; margin: 0 0 2px; }
+.pdf-answers .question { padding: var(--s2) 0; }
+.pdf-answers .question-head { margin-bottom: 4px; }
+.watermark.over { z-index: 5; opacity: .07; }
+@media (max-width: 700px) { .pdf-body { grid-template-columns: 1fr; } .pdf-answers { position: static; max-height: none; } }
+.key-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: var(--s5); align-items: start; }
+.key-pages { position: sticky; top: var(--s3); max-height: calc(100vh - 2rem); overflow-y: auto; border: 1px solid var(--rule-strong); }
+.key-pages img { display: block; width: 100%; height: auto; border-bottom: 1px solid var(--rule); }
+.key-paste { border: 1px solid var(--rule-strong); padding: var(--s3); margin-bottom: var(--s3); }
+.key-paste textarea { width: 100%; margin: var(--s2) 0; font-family: var(--mono); }
+.key-table td { vertical-align: middle; }
+.key-kind select { max-width: 11rem; margin-bottom: 4px; display: block; }
+.key-row[data-type="tf"] .key-choices, .key-row[data-type="numeric"] .key-choices, .key-row[data-type="short"] .key-choices, .key-row[data-type="essay"] .key-choices { display: none; }
+.key-letters { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.key-letters .fix-letter { width: 34px; height: 34px; font-size: .9rem; }
+.key-row .key-value[type="text"] { width: 100%; max-width: 16rem; }
+.key-hand { display: none; }
+.key-row[data-type="essay"] .key-hand { display: inline; }
+.key-tol input { visibility: hidden; width: 5em; }
+.key-row[data-type="numeric"] .key-tol input { visibility: visible; }
+.key-row.missing .key-n { color: var(--redpen); }
+.key-row.missing td { background: var(--redpen-tint); }
+.key-row.missing[data-type="essay"] td { background: none; }
+.key-points { width: 5em; }
+@media (max-width: 1000px) { .key-layout { grid-template-columns: 1fr; } .key-pages { position: static; max-height: 60vh; } }

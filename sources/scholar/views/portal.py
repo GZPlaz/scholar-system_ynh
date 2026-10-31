@@ -28,7 +28,7 @@ from ..lockdown import (
     seb_settings,
     verify as seb_verify,
 )
-from ..models import Assessment, Attempt, Enrollment, TestSession, User, utcnow
+from ..models import Assessment, Attempt, Enrollment, PdfPage, TestSession, User, utcnow
 from ..security import (
     CONFIRM_TTL,
     PORTAL_COOKIE,
@@ -554,7 +554,7 @@ def _state(attempt):
 
 def _answer_form(attempt):
     """With restricted navigation only the current question's answer may be saved."""
-    if not attempt.assessment.sequential:
+    if not attempt.assessment.sequential or attempt.assessment.pdf is not None:
         return request.form
     entries = ordered_entries(attempt)
     if not entries:
@@ -584,7 +584,7 @@ def take():
         g.refresh = 5
         return render_template("portal/locked.html", assessment=assessment, attempt=attempt)
     entries = ordered_entries(attempt)
-    if assessment.sequential and entries:
+    if assessment.sequential and entries and assessment.pdf is None:
         attempt.position = min(attempt.position, len(entries) - 1)
         shown = [entries[attempt.position]]
     else:
@@ -599,7 +599,19 @@ def take():
         preview=False,
         remaining=remaining_seconds(attempt),
         lockdown=g.test_session.lockdown_ok and assessment.lockdown_browser == "seb",
+        page_url=lambda n: url_for("portal.attempt_page", number=n),
     )
+
+
+@bp.route("/attempt/page/<int:number>.jpg")
+@portal_session("ready")
+def attempt_page(number):
+    """One page of a PDF test, only for a student who is sitting it now (and not while their test is paused)."""
+    attempt = _session_attempt(g.test_session)
+    if attempt is None or attempt.status != "in_progress" or attempt.locked or enforce_deadline(attempt):
+        abort(404)
+    page = PdfPage.query.filter_by(assessment_id=attempt.assessment_id, page=number).first() or abort(404)
+    return Response(bytes(page.data), mimetype="image/jpeg", headers={"Cache-Control": "no-store, max-age=0"})
 
 
 @bp.route("/attempt/next", methods=["POST"])

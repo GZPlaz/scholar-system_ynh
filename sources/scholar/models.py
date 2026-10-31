@@ -670,6 +670,41 @@ class Accommodation(db.Model):
     user = db.relationship("User")
 
 
+class AssessmentPdf(db.Model):
+    """The PDF a test was made from. The answer key is entered against its question numbers."""
+
+    __tablename__ = "assessment_pdfs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    assessment_id = db.Column(db.Integer, db.ForeignKey("assessments.id", ondelete="CASCADE"), nullable=False, unique=True)
+    filename = db.Column(db.String(255), nullable=False, default="test.pdf")
+    size = db.Column(db.Integer, nullable=False, default=0)
+    sha256 = db.Column(db.String(64), nullable=False, default="")
+    pages = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    data = db.deferred(db.Column(db.LargeBinary, nullable=False))  # the original file, for printing
+
+    assessment = db.relationship("Assessment", backref=db.backref("pdf", uselist=False, cascade="all, delete-orphan"))
+
+
+class PdfPage(db.Model):
+    """One page of the PDF drawn as a JPEG. Students see these, never the PDF file itself."""
+
+    __tablename__ = "assessment_pdf_pages"
+    __table_args__ = (db.UniqueConstraint("assessment_id", "page"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    assessment_id = db.Column(db.Integer, db.ForeignKey("assessments.id", ondelete="CASCADE"), nullable=False, index=True)
+    page = db.Column(db.Integer, nullable=False)
+    width = db.Column(db.Integer, nullable=False, default=0)
+    height = db.Column(db.Integer, nullable=False, default=0)
+    data = db.deferred(db.Column(db.LargeBinary, nullable=False))
+
+    assessment = db.relationship(
+        "Assessment", backref=db.backref("pdf_pages", cascade="all, delete-orphan", order_by="PdfPage.page")
+    )
+
+
 class PortalFailure(db.Model):
     """Failed test-portal sign-ins, for throttling (old rows are pruned)."""
 

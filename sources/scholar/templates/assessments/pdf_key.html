@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% from "_macros.html" import assessment_tabs, post_button with context %}
+{% macro key_row(row, locked) -%}
+<tr class="key-row" data-type="{{ row.type }}">
+  <td class="num key-n">{{ row.n }}</td>
+  <td class="key-kind">
+    {% if locked %}
+      <input type="hidden" class="key-type" name="type_{{ row.n }}" value="{{ row.type }}"><input type="hidden" class="key-choices" name="choices_{{ row.n }}" value="{{ row.choices }}">
+      <span class="small">{{ key_types[row.type] }}{% if row.type in ('mc', 'ms') %}, {{ row.choices }} choices{% endif %}</span>
+    {% else %}
+      <select class="key-type" name="type_{{ row.n }}" aria-label="Type of question {{ row.n }}">{% for k, label in key_types.items() %}<option value="{{ k }}" {{ 'selected' if k == row.type }}>{{ label }}</option>{% endfor %}</select>
+      <select class="key-choices" name="choices_{{ row.n }}" aria-label="Number of choices of question {{ row.n }}">{% for c in range(2, 9) %}<option value="{{ c }}" {{ 'selected' if c == row.choices }}>{{ c }} choices</option>{% endfor %}</select>
+    {% endif %}
+  </td>
+  <td class="key-answer">
+    <div class="key-letters" role="group" aria-label="Correct answer to question {{ row.n }}"></div>
+    <input class="key-value" type="{{ 'text' if row.type in ('numeric', 'short') else 'hidden' }}" name="answer_{{ row.n }}" value="{{ row.answer }}" autocomplete="off" maxlength="300" aria-label="Correct answer to question {{ row.n }}" placeholder="{{ 'the number' if row.type == 'numeric' else 'accepted answers, separated by |' }}">
+    <span class="small muted key-hand">Graded by hand after the test.</span>
+  </td>
+  <td><input class="key-points" type="number" name="points_{{ row.n }}" value="{{ '%g'|format(row.points) }}" min="0.01" step="any" aria-label="Points for question {{ row.n }}"></td>
+  <td class="key-tol"><input type="number" name="tol_{{ row.n }}" value="{{ '%g'|format(row.tol) }}" min="0" step="any" aria-label="Allowed error for question {{ row.n }}" title="How far from the correct number an answer may be"></td>
+</tr>
+{%- endmacro %}
+{% block title %}Answer key, {{ assessment.title }}{% endblock %}
+{% block content %}
+{% call assessment_tabs(assessment, 'key') %}
+  <a class="btn" href="{{ url_for('pdftests.download', assessment_id=assessment.id) }}" target="_blank">Open the PDF</a>
+  <a class="btn" href="{{ url_for('assessments.preview', assessment_id=assessment.id) }}">Preview as a student</a>
+{% endcall %}
+<div class="key-layout">
+  <section class="key-pages" aria-label="The test PDF">
+    {% for pg in assessment.pdf_pages %}<img src="{{ url_for('pdftests.page', assessment_id=assessment.id, number=pg.page) }}" width="{{ pg.width }}" height="{{ pg.height }}" alt="Page {{ pg.page }} of {{ assessment.pdf.filename }}" loading="lazy">{% endfor %}
+  </section>
+  <form method="post" class="key-form" id="key-form" data-locked="{{ 1 if locked else 0 }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="rows" id="key-count" value="{{ rows|length }}">
+    {% if locked %}<div class="flash flash-info">Students have already started this test. You can correct answers and points (their results are re-scored); questions can't be added, removed or retyped.</div>{% endif %}
+    <details class="key-paste" {{ 'open' if not saved }}>
+      <summary><strong>Paste the answers</strong> <span class="small muted">the quickest way</span></summary>
+      <p class="small">Type or paste the key as <code>1.B 2.D 3.A</code>, one per line (<code>1 B</code>), or just the letters in order (<code>BDACCBAD</code> or <code>B D A C C</code>). <code>AC</code> means “select all: A and C”; <code>T</code>/<code>F</code> for true/false; a number or a word works too.</p>
+      <textarea id="key-paste" rows="3" placeholder="1.B 2.D 3.A 4.C …" aria-label="Answer key text"></textarea>
+      <div class="actions"><button type="button" class="btn btn-sm btn-primary" id="key-fill">Fill in the key</button><span class="small" id="key-paste-msg" aria-live="polite"></span></div>
+    </details>
+    <table class="table compact key-table">
+      <thead><tr><th class="num">#</th><th>Question is</th><th>Correct answer</th><th>Points</th><th class="key-tol-h" title="Numbers only: how far off an answer may be">±</th></tr></thead>
+      <tbody id="key-rows">{% for row in rows %}{{ key_row(row, locked) }}{% endfor %}</tbody>
+    </table>
+    <template id="key-row-template"><table><tbody>{{ key_row({'n': 0, 'type': 'mc', 'choices': 4, 'answer': '', 'points': 1.0, 'tol': 0.0}, false) }}</tbody></table></template>
+    {% if not locked %}
+    <div class="actions key-add">
+      <button type="button" class="btn btn-sm" id="key-add">Add</button>
+      <input type="number" id="key-add-count" value="5" min="1" max="50" aria-label="How many rows to add" style="width: 4.5em">
+      <span class="small">more question rows</span>
+      <button type="button" class="btn btn-sm" id="key-remove">Remove the last row</button>
+    </div>
+    {% endif %}
+    <div class="actions mt">
+      <button class="btn btn-primary" type="submit">Save the answer key</button>
+      <span class="small muted"><span id="key-total">0</span> points in all. Rows left empty at the end are ignored.</span>
+    </div>
+  </form>
+</div>
+<section class="section" id="replace-pdf">
+  <h3>The PDF</h3>
+  <p class="small muted">{{ assessment.pdf.filename }}, {{ assessment.pdf.pages }} page{{ 's' if assessment.pdf.pages != 1 }}, {{ (assessment.pdf.size / 1024)|round|int }} KB. Print it for a paper test (then scan the answer sheets), or let students take it online in the test portal.</p>
+  <form method="post" action="{{ url_for('pdftests.replace', assessment_id=assessment.id) }}" enctype="multipart/form-data" class="actions" data-confirm="Replace the PDF? The answer key stays as it is.">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="file" name="pdf" accept="application/pdf,.pdf" required aria-label="A new PDF" style="max-width: 280px">
+    <button class="btn btn-sm" type="submit">Replace the PDF</button>
+  </form>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/pdf-key.js') }}?v={{ app_version }}"></script>{% endblock %}

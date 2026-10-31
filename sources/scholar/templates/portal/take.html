@@ -4,12 +4,13 @@
 {% block main_class %}take{% endblock %}
 {% block leave %}{% endblock %}
 {% block content %}
-{% set seq = assessment.sequential and attempt and not preview %}
+{% set pdf = assessment.pdf %}
+{% set seq = assessment.sequential and attempt and not preview and not pdf %}
 {% if preview %}
 <div class="flash flash-info no-print">Preview: this is what students see. Answers are not saved. <a href="{{ url_for('assessments.detail', assessment_id=assessment.id) }}">Back to the assessment</a></div>
 {% endif %}
 {% if assessment.watermark and student %}
-<div class="watermark" aria-hidden="true">{% for _ in range(60) %}<span>{{ student.display_name }} {{ student.student_number }}</span>{% endfor %}</div>
+<div class="watermark{{ ' over' if pdf }}" aria-hidden="true">{% for _ in range(60) %}<span>{{ student.display_name }} {{ student.student_number }}</span>{% endfor %}</div>
 {% endif %}
 <div class="lock-screen" id="fullscreen-gate" hidden>
   <div>
@@ -57,6 +58,14 @@
   </div>
   {% if assessment.instructions %}<div class="instructions">{{ assessment.instructions|richtext }}</div>{% endif %}
 
+  <div class="{{ 'pdf-body' if pdf }}">
+  {% if pdf %}
+  <div class="pdf-pages" aria-label="The test, {{ assessment.pdf_pages|length }} page{{ 's' if assessment.pdf_pages|length != 1 }}">
+    {% for pg in assessment.pdf_pages %}<img src="{{ page_url(pg.page) }}" width="{{ pg.width }}" height="{{ pg.height }}" alt="Page {{ pg.page }} of {{ assessment.pdf_pages|length }} of the test" loading="lazy" draggable="false">{% endfor %}
+  </div>
+  {% endif %}
+  <div class="{{ 'pdf-answers' if pdf }}">
+  {% if pdf %}<h2 class="pdf-answers-title">Your answers</h2><p class="small muted">Read each question in the test, then mark your answer here.</p>{% endif %}
   {% for e in entries %}{% set item = e.item %}{% set q = item.question %}{% set ans = e.answer %}
   {% set number = attempt.position + 1 if seq else loop.index %}
   <div class="question" id="q{{ number }}" data-item="{{ item.id }}">
@@ -67,7 +76,7 @@
         <div class="meta"><span class="sr-only">Question {{ number }},</span><span>{{ item.effective_points|num }} point{{ 's' if item.effective_points != 1 }}</span>{% if q.qtype == 'ms' %}<span>Select every correct answer</span>{% endif %}</div>
         {% if not seq %}<button type="button" class="btn btn-sm flag-btn" data-item="{{ item.id }}">Flag for review</button>{% endif %}
       </div>
-      <div class="stem">{{ q.stem|richtext }}</div>
+      {% if not pdf %}<div class="stem">{{ q.stem|richtext }}</div>{% endif %}
       {% if q.qtype in ('mc', 'tf') %}
         <div class="choices" role="radiogroup" aria-label="Question {{ number }} answers">
         {% for c in e.choices %}
@@ -98,6 +107,8 @@
     <button class="btn btn-primary" type="submit">Submit answers</button>
     <span class="help">{% if seq %}This is the last question.{% else %}You can return to this page until you submit{% if remaining is not none %} or the time runs out{% endif %}.{% endif %} Answers save as you go.</span>
     {% endif %}
+  </div>
+  </div>
   </div>
 </form>
 {% endblock %}

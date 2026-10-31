@@ -9,7 +9,8 @@
     <p class="small muted">One answer sheet per student, a full page each (longer tests continue on further pages), with their name and a code Scholar reads back when you scan it. Print the booklet for the questions themselves.</p>
     <div class="actions">
       <a class="btn btn-sm btn-primary" href="{{ url_for('assessments.bubble_sheets', assessment_id=assessment.id) }}" target="_blank">Answer sheets for the class</a>
-      <a class="btn btn-sm" href="{{ url_for('assessments.print_test', assessment_id=assessment.id) }}" target="_blank">Booklet</a>
+      {% if assessment.pdf %}<a class="btn btn-sm" href="{{ url_for('pdftests.download', assessment_id=assessment.id) }}" target="_blank">The test (PDF)</a>
+      {% else %}<a class="btn btn-sm" href="{{ url_for('assessments.print_test', assessment_id=assessment.id) }}" target="_blank">Booklet</a>{% endif %}
       <a class="btn btn-sm" href="{{ url_for('assessments.print_test', assessment_id=assessment.id, key=1) }}" target="_blank">Answer key</a>
       <a class="btn btn-sm" href="{{ url_for('assessments.bubble_sheets', assessment_id=assessment.id, blank=1) }}" target="_blank">A blank sheet</a>
     </div>
@@ -33,7 +34,8 @@
     <h3>Print the papers</h3>
     <p class="small muted">The booklet, the answer key, and answer sheets with each enrolled student's name already filled in.</p>
     <div class="actions">
-      <a class="btn btn-sm" href="{{ url_for('assessments.print_test', assessment_id=assessment.id) }}" target="_blank">Booklet</a>
+      {% if assessment.pdf %}<a class="btn btn-sm" href="{{ url_for('pdftests.download', assessment_id=assessment.id) }}" target="_blank">The test (PDF)</a>
+      {% else %}<a class="btn btn-sm" href="{{ url_for('assessments.print_test', assessment_id=assessment.id) }}" target="_blank">Booklet</a>{% endif %}
       <a class="btn btn-sm" href="{{ url_for('assessments.print_test', assessment_id=assessment.id, key=1) }}" target="_blank">Answer key</a>
       <a class="btn btn-sm" href="{{ url_for('assessments.bubble_sheets', assessment_id=assessment.id) }}" target="_blank">Answer sheets</a>
       <a class="btn btn-sm" href="{{ url_for('assessments.bubble_sheets', assessment_id=assessment.id, blank=1) }}" target="_blank">One blank sheet</a>

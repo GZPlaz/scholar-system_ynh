@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}New assessment from a PDF{% endblock %}
+{% block main_class %}narrow{% endblock %}
+{% block content %}
+<div class="breadcrumb"><a href="{{ url_for('courses.detail', course_id=course.id) }}">{{ course.code }}</a></div>
+<div class="page-head"><div><h1>New assessment from a PDF</h1><p class="facts">{{ course.label }}</p></div></div>
+{% if not available %}
+<div class="flash flash-error">Tests from a PDF are not available on this server (the PDF library is not installed; it has no package for 32-bit ARM). Use <a href="{{ url_for('assessments.new', course_id=course.id) }}">a normal assessment</a> instead.</div>
+{% else %}
+<p>Upload the test exactly as it is. On the next page you type in the correct answers while looking at the PDF; students see the PDF pages beside their answer bubbles, and Scholar marks it.</p>
+<form method="post" enctype="multipart/form-data" class="section plain">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="course_id" value="{{ course.id }}">
+  <div class="field"><label for="pdf">The test (PDF)</label><input type="file" id="pdf" name="pdf" accept="application/pdf,.pdf" required><div class="help">Up to 25 MB and 60 pages. Questions should be numbered 1, 2, 3… so the answers line up.</div></div>
+  <div class="field"><label for="title">Title</label><input type="text" id="title" name="title" maxlength="200" value="{{ form.get('title', '') }}" placeholder="Taken from the file name if left empty"></div>
+  <div class="form-row">
+    <div class="field"><label for="questions">Number of questions</label><input type="number" id="questions" name="questions" min="1" max="300" value="{{ form.get('questions', 20) }}"><div class="help">A guess is fine: add or remove rows on the next page.</div></div>
+    <div class="field"><label for="choices">Answer choices</label><select id="choices" name="choices">{% for n in (2, 3, 4, 5, 6) %}<option value="{{ n }}" {{ 'selected' if (form.get('choices', '4')|int) == n }}>{{ n }} (A{{ '–' ~ 'ABCDEF'[n - 1] }})</option>{% endfor %}</select><div class="help">Most questions use this. You can change any question later.</div></div>
+  </div>
+  <div class="actions"><button class="btn btn-primary" type="submit">Upload and enter the answers</button><a class="btn" href="{{ url_for('courses.detail', course_id=course.id) }}">Cancel</a></div>
+</form>
+{% endif %}
+{% endblock %}

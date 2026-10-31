@@ -12,3 +12,6 @@ gunicorn==23.0.0
 # Prebuilt wheels exist for x86_64 and arm64; 32-bit ARM servers skip them.
 numpy==2.2.6; platform_machine != "armv7l"
 opencv-python-headless==4.10.0.84; platform_machine != "armv7l"
+# Tests made from a PDF: pages are drawn with PDFium (BSD/Apache licence). Wheels exist for x86_64, arm64 and 32-bit ARM;
+# page images are encoded with OpenCV, so 32-bit ARM servers (which skip it) do without this feature.
+pypdfium2==5.14.0; platform_machine != "armv7l"
