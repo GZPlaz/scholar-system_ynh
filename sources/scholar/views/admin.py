@@ -4,8 +4,9 @@ from zoneinfo import available_timezones
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
+from .. import syncevents
 from ..extensions import db
-from ..models import ROLES, AuditLog, Course, Enrollment, User
+from ..models import ROLES, AuditLog, Course, Enrollment, SyncEvent, User
 from ..utils import (
     admin_required,
     csv_response,
@@ -291,6 +292,41 @@ def integrations():
                 db.session.commit()
                 flash(f"Token “{token.name}” revoked. Anything using it stops working immediately.", "success")
             return redirect(url_for("admin.integrations"))
+        elif action in ("webhook_save", "webhook_test", "webhook_clear", "webhook_rotate"):
+            return _webhook_action(action)
     tokens = ApiToken.query.order_by(ApiToken.revoked, ApiToken.created_at.desc()).all()
     api_url = url_for("api.ping", _external=True).rsplit("/ping", 1)[0]
-    return render_template("admin/integrations.html", tokens=tokens, new_secret=new_secret, api_url=api_url)
+    hook_url, hook_secret = syncevents.webhook()
+    events = SyncEvent.query.order_by(SyncEvent.id.desc()).limit(15).all()
+    return render_template(
+        "admin/integrations.html",
+        tokens=tokens,
+        new_secret=new_secret,
+        api_url=api_url,
+        hook_url=hook_url,
+        hook_secret=hook_secret,
+        hook=syncevents.stats(),
+        events=events,
+        max_attempts=syncevents.MAX_ATTEMPTS,
+    )
+
+
+def _webhook_action(action):
+    if action == "webhook_test":
+        ok, message = syncevents.send_test()
+        flash(("The other system answered the test: " if ok else "The test did not get through: ") + message, "success" if ok else "error")
+    elif action == "webhook_clear":
+        syncevents.clear_webhook()
+        log_event("admin.webhook_removed")
+        db.session.commit()
+        flash("Instant updates are off. The other system still gets the changes if it asks for them.", "success")
+    else:
+        try:
+            syncevents.save_webhook(request.form.get("url", ""), rotate=action == "webhook_rotate")
+        except ValueError as exc:
+            flash(str(exc), "error")
+        else:
+            log_event("admin.webhook_saved", syncevents.webhook()[0])
+            db.session.commit()
+            flash("Saved. Scholar tells that address as soon as grades change." if action == "webhook_save" else "New signing secret created: copy it into the other system.", "success")
+    return redirect(url_for("admin.integrations"))

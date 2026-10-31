@@ -572,6 +572,32 @@ class ApiToken(db.Model):
     created_by = db.relationship("User")
 
 
+class SyncEvent(db.Model):
+    """One change that connected systems must hear about: grades of a linked course changed.
+
+    Rows are written in the same database transaction as the change itself (see ``syncevents``),
+    so there is never a change without an event, nor an event for a change that was rolled back.
+    The RosarioSIS plugin is told right away (signed webhook) and can also read the list back
+    (``GET /api/v1/changes``) in case a delivery was missed. Courses can be deleted, so the row
+    keeps its own copy of the course's external id and has no foreign keys.
+    """
+
+    __tablename__ = "sync_events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow, index=True)
+    course_id = db.Column(db.Integer, nullable=False, index=True)
+    course_external_id = db.Column(db.String(120), nullable=False, default="")
+    assessment_id = db.Column(db.Integer)
+    reason = db.Column(db.String(60), nullable=False, default="")
+    # delivery to the webhook
+    delivered_at = db.Column(db.DateTime, index=True)
+    attempts = db.Column(db.Integer, nullable=False, default=0)
+    next_attempt_at = db.Column(db.DateTime)
+    locked_until = db.Column(db.DateTime)  # a delivery is in progress
+    last_error = db.Column(db.String(300), nullable=False, default="")
+
+
 # --------------------------------------------------------------------------- test portal
 
 

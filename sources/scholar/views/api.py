@@ -15,7 +15,8 @@ from flask import Blueprint, g, jsonify, request, url_for
 from .. import __version__
 from ..extensions import csrf, db
 from ..grading import counted_attempts, enforce_deadlines
-from ..models import ApiToken, Course, Enrollment, User, utcnow
+from .. import syncevents
+from ..models import ApiToken, Course, Enrollment, SyncEvent, User, utcnow
 from ..utils import get_setting, log_event
 
 bp = Blueprint("api", __name__, url_prefix="/api/v1")
@@ -356,6 +357,83 @@ def course_results(course_id):
             }
         )
     return jsonify({"course": course_json(course), "assessments": out})
+
+
+@bp.route("/changes", methods=["GET"])
+@token_required
+def changes():
+    """Everything that changed grades since event ``after``: the polling twin of the webhook.
+
+    ``head`` is the newest event id (a new subscriber starts from it); ``events`` are the ones
+    after ``after``, oldest first, at most ``limit``; ``more`` says whether to ask again.
+    """
+    after = max(0, request.args.get("after", type=int) or 0)
+    limit = max(1, min(request.args.get("limit", default=500, type=int) or 500, 1000))
+    head = db.session.query(db.func.max(SyncEvent.id)).scalar() or 0
+    rows = SyncEvent.query.filter(SyncEvent.id > after).order_by(SyncEvent.id).limit(limit + 1).all()
+    return jsonify(
+        {
+            "head": head,
+            "more": len(rows) > limit,
+            "events": [
+                {
+                    "id": r.id,
+                    "course_id": r.course_id,
+                    "external_id": r.course_external_id,
+                    "assessment_id": r.assessment_id,
+                    "reason": r.reason,
+                    "created_at": _iso(r.created_at),
+                }
+                for r in rows[:limit]
+            ],
+        }
+    )
+
+
+def _webhook_json():
+    url, _ = syncevents.webhook()
+    return {"url": url, "configured": bool(url), **{k: (_iso(v) if k == "last_ok" else v) for k, v in syncevents.stats().items()}}
+
+
+@bp.route("/webhook", methods=["GET"])
+@token_required
+def get_webhook():
+    return jsonify({"webhook": _webhook_json()})
+
+
+@bp.route("/webhook", methods=["PUT"])
+@token_required
+def put_webhook():
+    """Register where Scholar tells the connected system about changes. Returns the signing secret.
+
+    Every request Scholar sends carries ``X-Scholar-Timestamp`` and ``X-Scholar-Signature:
+    sha256=<hex>``, the HMAC-SHA256 of ``"<timestamp>.<body>"`` with this secret.
+    """
+    data = _json_body()
+    try:
+        secret = syncevents.save_webhook(_text(data, "url", 500, required=True), rotate=bool(data.get("rotate")))
+    except ValueError as exc:
+        raise ApiError(str(exc))
+    log_event("api.webhook_saved", f"{syncevents.webhook()[0]} via token {g.api_token.name}")
+    db.session.commit()
+    return jsonify({"webhook": _webhook_json(), "secret": secret})
+
+
+@bp.route("/webhook", methods=["DELETE"])
+@token_required
+def delete_webhook():
+    syncevents.clear_webhook()
+    log_event("api.webhook_removed", f"via token {g.api_token.name}")
+    db.session.commit()
+    return jsonify({"webhook": _webhook_json()})
+
+
+@bp.route("/webhook/test", methods=["POST"])
+@token_required
+def test_webhook():
+    """Send a signed 'ping' to the saved address and report whether the receiver accepted it."""
+    ok, message = syncevents.send_test()
+    return jsonify({"ok": ok, "message": message}), 200
 
 
 @bp.route("/users/active", methods=["POST"])

@@ -11,13 +11,14 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from .config import build_config
 from .extensions import csrf, db, login_manager
 
-__version__ = "1.7.0"
+__version__ = "1.8.0"
 STAFF_PREFIX = "/staff"
 # 2: answer_sheets, sheet_scans; 3: api_tokens, users/courses.external_id;
 # 4: test portal (test_sessions, attempt_events, portal_failures, PINs, security settings);
 # 5: lockdown browser, access passwords, one sitting, restricted navigation, accommodations;
-# 6: tests made from a PDF (assessment_pdfs, assessment_pdf_pages)
-SCHEMA_VERSION = 6
+# 6: tests made from a PDF (assessment_pdfs, assessment_pdf_pages);
+# 7: change log for connected systems (sync_events)
+SCHEMA_VERSION = 7
 
 
 class PrefixMiddleware:
@@ -71,6 +72,8 @@ def create_app(overrides=None):
     app.register_blueprint(portal.bp)
     app.register_blueprint(legacy.bp)
 
+    from . import syncevents  # noqa: F401  (registers the hooks that record grade changes)
+
     app.before_request(auth.try_sso_login)
     app.before_request(auth.keep_students_out)
     _register_template_helpers(app)
@@ -101,6 +104,12 @@ def create_app(overrides=None):
             response.headers["Permissions-Policy"] = (
                 "camera=(), microphone=(), geolocation=(), payment=(), usb=(), display-capture=(), clipboard-read=()"
             )
+        return response
+
+    @app.after_request
+    def retry_deliveries(response):
+        # A restarted worker must not forget changes the connected system hasn't been told about yet.
+        syncevents.poll_if_idle()
         return response
 
     return app
@@ -321,6 +330,14 @@ def _register_cli(app):
         """Apply schema upgrades (run on every YunoHost upgrade)."""
         before = upgrade_schema()
         click.echo(f"Schema at version {SCHEMA_VERSION} (was {before}).")
+
+    @app.cli.command("deliver-sync-events")
+    def deliver_sync_events():
+        """Send the changes that haven't reached the connected system yet (normally automatic)."""
+        from . import syncevents
+
+        wait = syncevents.deliver_due()
+        click.echo("Nothing is waiting." if wait is None else f"Some changes are waiting to be retried (next in {int(wait)} s).")
 
     @app.cli.command("create-local-admin")
     @click.argument("username")
