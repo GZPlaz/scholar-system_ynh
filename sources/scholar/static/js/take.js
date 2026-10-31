@@ -193,9 +193,15 @@
 
   /* ---- leaving the test page ---- */
   var lastAway = 0, isAway = false;
+  /* iPad and iPhone Safari fire blur / focus loss whenever system bars slide in (scrolling up, the full
+     screen button, the status bar), without the student leaving anything. Only a hidden page counts there. */
+  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  /* Entering or leaving full screen shakes focus and visibility for a moment: that is not leaving the test. */
+  var settleUntil = 0;
   function away(kind) {
     if (unloading || submitted) return;
     var now = Date.now();
+    if (kind !== "fullscreen_exit" && now < settleUntil) return;
     isAway = true;
     if (now - lastAway < 1500) return; // blur and visibilitychange fire together
     lastAway = now;
@@ -210,25 +216,42 @@
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "hidden") away("focus_lost"); else back();
   });
-  window.addEventListener("blur", function () { if (!document.hasFocus()) away("focus_lost"); });
+  window.addEventListener("blur", function () { if (!isIOS && !document.hasFocus()) away("focus_lost"); });
   window.addEventListener("focus", back);
 
   /* ---- full screen ---- */
   if (wantFullscreen && !preview && fullscreenGate) {
-    var fsSupported = !!(document.fullscreenEnabled && document.documentElement.requestFullscreen);
+    var root = document.documentElement;
+    // Safari on iPad only has the prefixed version before iPadOS 16.4.
+    var fsElement = function () { return document.fullscreenElement || document.webkitFullscreenElement || null; };
+    var fsRequest = root.requestFullscreen || root.webkitRequestFullscreen;
+    var fsSupported = !!(fsRequest && (document.fullscreenEnabled || document.webkitFullscreenEnabled));
     var gate = function () {
-      var outside = !document.fullscreenElement;
+      var outside = !fsElement();
       fullscreenGate.hidden = !outside;
       form.classList.toggle("is-hidden", outside || locked);
     };
     if (fsSupported) {
+      var exitTimer = null;
       document.getElementById("enter-fullscreen").addEventListener("click", function () {
-        document.documentElement.requestFullscreen().catch(function () {});
+        settleUntil = Date.now() + 2500;
+        var result = fsRequest.call(root);
+        if (result && result.catch) result.catch(function () {});
       });
-      document.addEventListener("fullscreenchange", function () {
-        if (!document.fullscreenElement && !submitted) away("fullscreen_exit"); else if (document.fullscreenElement) back();
-        gate();
-      });
+      var changed = function () {
+        settleUntil = Date.now() + 2500;
+        window.clearTimeout(exitTimer);
+        gate(); // the questions hide at once when full screen ends
+        if (fsElement()) { exitTimer = null; back(); return; }
+        if (submitted) return;
+        // Safari can drop out and straight back in (scrolling, system bars): count it only if it lasts.
+        exitTimer = window.setTimeout(function () {
+          exitTimer = null;
+          if (!fsElement() && !submitted) { settleUntil = 0; away("fullscreen_exit"); }
+        }, 1500);
+      };
+      document.addEventListener("fullscreenchange", changed);
+      document.addEventListener("webkitfullscreenchange", changed);
       gate();
     } else {
       report("fullscreen_unsupported"); // e.g. iPhone Safari: recorded, not blocked

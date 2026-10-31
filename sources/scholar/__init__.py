@@ -11,7 +11,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from .config import build_config
 from .extensions import csrf, db, login_manager
 
-__version__ = "1.8.0"
+__version__ = "1.8.1"
 STAFF_PREFIX = "/staff"
 # 2: answer_sheets, sheet_scans; 3: api_tokens, users/courses.external_id;
 # 4: test portal (test_sessions, attempt_events, portal_failures, PINs, security settings);
