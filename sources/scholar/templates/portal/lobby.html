@@ -9,12 +9,14 @@
   <p class="small muted">This page checks again every few seconds.</p>
 </section>
 {% else %}
+{% set done = attempts|selectattr('status', 'equalto', 'submitted')|list %}
 {% if assessment.instructions %}<div class="instructions">{{ assessment.instructions|richtext }}</div>{% endif %}
 <table class="table kv">
   <tr><th>Questions</th><td>{{ assessment.items|length }}, worth {{ assessment.max_score|num }} points in total</td></tr>
   <tr><th>Time limit</th><td>{% if assessment.time_limit_minutes %}{{ assessment.time_limit_minutes + (accommodation.extra_minutes if accommodation else 0) }} minutes{% if accommodation and accommodation.extra_minutes %} (including {{ accommodation.extra_minutes }} extra for you){% endif %}. The timer starts when you begin{{ '' if assessment.clock_stops_when_paused else ' and does not pause' }}.{% else %}None{% endif %}</td></tr>
   {% if assessment.closes_at %}<tr><th>Closes</th><td>{{ assessment.closes_at|dt }}</td></tr>{% endif %}
-  <tr><th>Attempts</th><td>{{ attempts|length }} used{% if assessment.max_attempts %} of {{ assessment.max_attempts + (accommodation.extra_attempts if accommodation else 0) }}{% else %}, no limit{% endif %}</td></tr>
+  {% set normal = attempts|rejectattr('is_retake')|list %}
+  <tr><th>Attempts</th><td>{{ normal|length }} used{% if assessment.max_attempts %} of {{ assessment.max_attempts + (accommodation.extra_attempts if accommodation else 0) }}{% else %}, no limit{% endif %}{% if retake_open %}; retakes: {{ (attempts|selectattr('is_retake')|list)|length }} used{% if assessment.retake_max_attempts %} of {{ assessment.retake_max_attempts }}{% endif %}{% endif %}</td></tr>
 </table>
 {% set rules = [] %}
 {% if assessment.lockdown_browser == 'seb' %}{% set _ = rules.append('The test runs in Safe Exam Browser, which locks this device to the test until you finish.') %}{% endif %}
@@ -29,7 +31,20 @@
   <h2>Before you begin</h2>
   <ul class="rules">{% for r in rules %}<li>{{ r }}</li>{% endfor %}<li>Your answers save automatically while you work.</li></ul>
 </section>
+{% if retake_open and not in_progress %}
+<div class="flash flash-info">
+  {% if kind == 'retake' %}<strong>You can retake this test.</strong>
+  {% if assessment.retake_mode == 'practice' %}It is for practice: your grade does not change.{% elif policy == 'latest' %}Your newest attempt is the one that counts, so your retake score replaces your earlier one.{% else %}Your best attempt is the one that counts, so a retake can only raise your score.{% endif %}
+  {% if assessment.retake_prefill and done %}Your earlier answers are filled in: change any you want to fix.{% endif %}
+  {% if assessment.retake_closes_at %}Retakes close {{ assessment.retake_closes_at|dt }}.{% endif %}
+  {% else %}Retakes are open for this test.{% endif %}
+  {% if done %}Look at what you got right and wrong below first.{% endif %}
+</div>
+{% endif %}
 <div class="mt">
+{% if in_progress and in_progress.is_retake %}
+  <p class="small muted">Your retake is in progress.</p>
+{% endif %}
 {% if in_progress %}
   <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-primary" type="submit">Resume your test</button></form>
 {% elif problem %}
@@ -41,15 +56,14 @@
     <div class="field" style="max-width:260px"><label for="password">Test password</label><input type="text" id="password" name="password" class="code-input" autocapitalize="characters" spellcheck="false" maxlength="60" required autofocus>
       <div class="help">Your proctor gives it in the room{{ ' (it changes every few minutes)' if assessment.access_password_mode == 'rotating' }}.</div></div>
     {% endif %}
-    <button class="btn btn-primary" type="submit">Begin {{ 'attempt ' ~ (attempts|length + 1) if attempts else 'the test' }}</button>
+    <button class="btn btn-primary" type="submit">{% if kind == 'retake' %}Start my retake{% else %}Begin {{ 'attempt ' ~ (attempts|length + 1) if attempts else 'the test' }}{% endif %}</button>
   </form>
 {% endif %}
 </div>
-{% set done = attempts|selectattr('status', 'equalto', 'submitted')|list %}
 {% if done %}
 <section class="section mt">
   <h2>Your submitted attempts</h2>
-  <ul>{% for a in done %}<li><a href="{{ url_for('portal.review', attempt_id=a.id) }}">Attempt {{ a.number }}</a>, submitted {{ a.submitted_at|dt }}{% if assessment.results_visible() %}: {{ a.percent|pct }}{% endif %}</li>{% endfor %}</ul>
+  <ul>{% for a in done %}<li><a href="{{ url_for('portal.review', attempt_id=a.id) }}">{{ 'Retake' if a.is_retake else 'Attempt' }} {{ a.number }}</a>, submitted {{ a.submitted_at|dt }}{% if assessment.results_visible() %}: {{ a.percent|pct }}{% endif %}</li>{% endfor %}</ul>
 </section>
 {% endif %}
 {% endif %}

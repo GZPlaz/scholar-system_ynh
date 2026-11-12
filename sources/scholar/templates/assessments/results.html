@@ -36,7 +36,7 @@
     <tr>
       <td><a href="{{ url_for('reports.student', course_id=assessment.course_id, user_id=r.user.id) }}">{{ r.user.display_name }}</a> <span class="small muted">{{ r.user.username }}</span>{% if not r.enrolled %} <span class="badge">not enrolled</span>{% endif %}</td>
       <td>{% if r.status == 'needs grading' %}<span class="badge badge-red">Needs grading</span>{% elif r.status == 'submitted' %}<span class="badge badge-green">Submitted</span>{% elif r.status == 'in progress' %}<span class="badge badge-blue">In progress</span>{% else %}<span class="badge">Not started</span>{% endif %}</td>
-      <td class="small">{% for a in r.attempts %}<a href="{{ url_for('assessments.attempt_detail', assessment_id=assessment.id, attempt_id=a.id) }}" title="{{ a.source }}, {{ a.status|replace('_', ' ') }}">{{ a.number }}{% if a.source == 'paper' %} (paper){% endif %}</a>{{ ', ' if not loop.last }}{% endfor %}</td>
+      <td class="small">{% for a in r.attempts %}<a href="{{ url_for('assessments.attempt_detail', assessment_id=assessment.id, attempt_id=a.id) }}" title="{{ a.source }}, {{ a.status|replace('_', ' ') }}">{{ a.number }}{% if a.source == 'paper' %} (paper){% endif %}{% if a.is_retake %} (retake{{ ', practice' if a.practice }}){% endif %}</a>{{ ', ' if not loop.last }}{% endfor %}</td>
       <td class="small">{{ c.submitted_at|dt if c else '–' }}</td>
       <td class="num">{% if c %}{{ c.score|num }} of {{ c.max_score|num }}{% else %}–{% endif %}</td>
       <td class="num">{% if c %}<strong>{{ c.percent|pct }}</strong>{{ c.percent|letter_grade }}{% else %}–{% endif %}</td>

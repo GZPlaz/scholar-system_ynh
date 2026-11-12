@@ -144,7 +144,7 @@ def regrade_assessment(assessment, keep_manual=True):
     return count
 
 
-def start_attempt(assessment, user, source="online", entered_by=None):
+def start_attempt(assessment, user, source="online", entered_by=None, retake=False):
     previous = Attempt.query.filter_by(assessment_id=assessment.id, user_id=user.id).count()
     item_ids = [item.id for item in assessment.items]
     if assessment.shuffle_questions and source == "online" and not assessment.pdf:  # a PDF's numbering is fixed
@@ -161,8 +161,10 @@ def start_attempt(assessment, user, source="online", entered_by=None):
     if source == "online":
         if assessment.time_limit_minutes:
             deadline = now + timedelta(minutes=assessment.time_limit_minutes)
-        if assessment.closes_at and (deadline is None or assessment.closes_at < deadline):
-            deadline = assessment.closes_at
+        # (a retake happens after the closing time, so it is bounded by the retake window instead)
+        end = assessment.retake_closes_at if retake else assessment.closes_at
+        if end and (deadline is None or end < deadline):
+            deadline = end
     attempt = Attempt(
         assessment=assessment,
         user=user,
@@ -175,14 +177,45 @@ def start_attempt(assessment, user, source="online", entered_by=None):
         item_order=json.dumps(item_ids),
         choice_order=json.dumps(choice_order),
         entered_by=entered_by,
+        is_retake=retake,
+        practice=retake and assessment.retake_mode == "practice",
     )
     db.session.add(attempt)
+    if retake and assessment.retake_prefill:
+        prefill_answers(attempt)
     return attempt
+
+
+def prefill_answers(attempt):
+    """Start a retake with the answers the student gave last time (they can change any of them)."""
+    earlier = [
+        a
+        for a in attempt.assessment.attempts
+        if a.user_id == attempt.user.id and a.status == "submitted" and a is not attempt
+    ]
+    if not earlier:
+        return 0
+    last = max(earlier, key=lambda a: (a.submitted_at or a.started_at, a.number))
+    items = {i.id: i for i in attempt.assessment.items}
+    count = 0
+    for response in last.responses:
+        answer = response.get_answer()
+        if response.item_id in items and answer is not None:
+            save_answer(attempt, items[response.item_id], answer)
+            count += 1
+    return count
 
 
 def effective_deadline(attempt):
     """When an online attempt ends: its time limit or the closing time, plus any time a proctor added."""
     deadline = attempt.deadline
+    if attempt.is_retake:
+        end = attempt.assessment.retake_closes_at
+        if end and (deadline is None or end < deadline):
+            deadline = end
+        if deadline is not None and attempt.extra_minutes:
+            deadline += timedelta(minutes=attempt.extra_minutes)
+        return deadline
     closes = attempt.assessment.closes_at
     if attempt.source == "online" and closes and (deadline is None or closes < deadline):
         deadline = closes
@@ -197,6 +230,16 @@ def enforce_deadline(attempt, now=None):
         return False
     now = now or utcnow()
     deadline = effective_deadline(attempt)
+    if attempt.is_retake:
+        # Closing the test is what lets retakes start, so it must not end one. A retake ends when its
+        # time runs out, its window closes, or the teacher turns retakes off.
+        if not attempt.assessment.retake_mode:
+            finalize_attempt(attempt, when=now)
+            return True
+        if deadline and now > deadline + DEADLINE_GRACE:
+            finalize_attempt(attempt, when=deadline)
+            return True
+        return False
     if attempt.assessment.status == "closed":
         finalize_attempt(attempt, when=min(now, deadline) if deadline else now)
         return True
@@ -229,8 +272,8 @@ def counted_attempts(assessment, policy=None):
     policy = policy or get_setting("attempt_policy") or "best"
     chosen = {}
     for attempt in assessment.attempts:
-        if attempt.status != "submitted":
-            continue
+        if attempt.status != "submitted" or attempt.practice:
+            continue  # a practice retake never changes anyone's grade
         current = chosen.get(attempt.user_id)
         if current is None:
             chosen[attempt.user_id] = attempt

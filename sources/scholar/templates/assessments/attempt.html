@@ -5,7 +5,7 @@
 {{ assessment_tabs(assessment, 'results') }}
 <div class="page-head">
   <div><h2 style="margin:0">{{ attempt.user.display_name }}</h2>
-    <p class="facts"><span>{{ attempt.user.username }}</span><span>Attempt {{ attempt.number }}</span>
+    <p class="facts"><span>{{ attempt.user.username }}</span><span>Attempt {{ attempt.number }}{% if attempt.is_retake %} (retake{{ ', practice: not counted' if attempt.practice }}){% endif %}</span>
       <span>{% if attempt.source == 'paper' %}Paper, entered by {{ attempt.entered_by.display_name if attempt.entered_by else 'unknown' }}{% else %}Online{% endif %}</span>
       <span>Started {{ attempt.started_at|dt }}</span>{% if attempt.submitted_at %}<span>Submitted {{ attempt.submitted_at|dt }}</span>{% endif %}</p></div>
   <div class="actions">

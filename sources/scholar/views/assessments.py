@@ -143,6 +143,17 @@ def _apply_settings(assessment, form):
     grace = parse_int(form.get("focus_grace_seconds"), 0) if form.get("focus_grace_seconds", "").strip() else 0
     if grace is None or not 0 <= grace <= 60:
         errors.append("Ignoring short absences takes 0 to 60 seconds.")
+    # retakes
+    retake_mode = form.get("retake_mode", "")
+    if retake_mode not in ("", "practice", "counts"):
+        errors.append("Choose how retakes count.")
+    retake_opens = parse_local_datetime(form.get("retake_opens_at"))
+    retake_closes = parse_local_datetime(form.get("retake_closes_at"))
+    if retake_opens and retake_closes and retake_closes <= retake_opens:
+        errors.append("Retakes must close after they open.")
+    retake_max = parse_int(form.get("retake_max_attempts"), 1) if form.get("retake_max_attempts", "").strip() else 1
+    if retake_max is None or not 0 <= retake_max <= 20:
+        errors.append("Retakes allowed must be 0 (unlimited) to 20.")
     if errors:
         return errors
     assessment.title = title[:200]
@@ -191,6 +202,12 @@ def _apply_settings(assessment, form):
         assessment.shuffle_questions = assessment.shuffle_choices = assessment.sequential = False
     assessment.focus_grace_seconds = grace
     assessment.clock_stops_when_paused = parse_bool(form.get("clock_stops_when_paused", ""))
+    assessment.retake_mode = retake_mode
+    assessment.retake_opens_at = retake_opens
+    assessment.retake_closes_at = retake_closes
+    assessment.retake_max_attempts = retake_max
+    assessment.retake_prefill = parse_bool(form.get("retake_prefill", ""))
+    assessment.retake_show_correct = parse_bool(form.get("retake_show_correct", ""))
     return []
 
 
@@ -225,6 +242,8 @@ def new():
         "watermark": "1",
         "password_rotation_minutes": "5",
         "focus_grace_seconds": "0",
+        "retake_max_attempts": "1",
+        "retake_prefill": "1",
     }
     return render_template("assessments/settings.html", assessment=None, course=course, form=defaults)
 
@@ -440,6 +459,10 @@ def duplicate(assessment_id):
         sequential=source.sequential,
         focus_grace_seconds=source.focus_grace_seconds,
         clock_stops_when_paused=source.clock_stops_when_paused,
+        retake_mode=source.retake_mode,
+        retake_max_attempts=source.retake_max_attempts,
+        retake_prefill=source.retake_prefill,
+        retake_show_correct=source.retake_show_correct,
     )
     db.session.add(copy)
     copy.course = course

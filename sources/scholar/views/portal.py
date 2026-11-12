@@ -55,7 +55,7 @@ from ..security import (
     set_portal_cookie,
 )
 from ..taking import ordered_entries, remaining_seconds, review_entries, store_form_answers
-from ..utils import log_event
+from ..utils import get_setting, log_event
 
 bp = Blueprint("portal", __name__)
 
@@ -464,9 +464,8 @@ def verify():
 # --------------------------------------------------------------------------- 3. lobby (start / resume / results)
 
 
-def start_problem(assessment, attempts, in_progress, accommodation=None):
-    if in_progress is not None:
-        return None
+def normal_problem(assessment, attempts, accommodation=None):
+    """Why the student can't begin an ordinary attempt right now, or None when they can."""
     if not assessment.allow_online:
         return "This test is taken on paper."
     state = assessment.window_state()
@@ -477,12 +476,39 @@ def start_problem(assessment, attempts, in_progress, accommodation=None):
     if not assessment.items:
         return "This test has no questions yet."
     extra = accommodation.extra_attempts if accommodation else 0
-    if assessment.max_attempts and len(attempts) >= assessment.max_attempts + extra:
+    if assessment.max_attempts and len([a for a in attempts if not a.is_retake]) >= assessment.max_attempts + extra:
         return "You have used all of your attempts."
     cutoff = assessment.late_start_cutoff()
     if cutoff and utcnow() > cutoff:
         return "It is too late to start this test. Ask your proctor."
     return None
+
+
+def retake_problem(assessment, attempts):
+    """Why a retake can't begin now (None when it can). Only called while the retake window is open."""
+    if not assessment.items:
+        return "This test has no questions yet."
+    taken = len([a for a in attempts if a.is_retake])
+    if assessment.retake_max_attempts and taken >= assessment.retake_max_attempts:
+        return "You have used all of your retakes."
+    return None
+
+
+def start_kind(assessment, attempts, accommodation=None):
+    """What starting would be: ("attempt", None), ("retake", None) or (None, reason it can't start)."""
+    problem = normal_problem(assessment, attempts, accommodation)
+    if problem is None:
+        return "attempt", None
+    if assessment.retake_window_open():
+        problem = retake_problem(assessment, attempts)
+        return ("retake", None) if problem is None else (None, problem)
+    return None, problem
+
+
+def start_problem(assessment, attempts, in_progress, accommodation=None):
+    if in_progress is not None:
+        return None
+    return start_kind(assessment, attempts, accommodation)[1]
 
 
 @bp.route("/start", methods=["GET", "POST"])
@@ -505,6 +531,9 @@ def lobby():
         "in_progress": in_progress,
         "problem": problem,
         "accommodation": accommodation,
+        "kind": start_kind(assessment, attempts, accommodation)[0] if in_progress is None else None,
+        "retake_open": assessment.retake_window_open(),
+        "policy": get_setting("attempt_policy") or "best",
     }
     if request.method == "POST":
         if in_progress is None:
@@ -517,13 +546,16 @@ def lobby():
                     record_failure(password_scope(assessment.id, student.id))
                     db.session.commit()
                     return render_template("portal/lobby.html", error="That password is not right. Your proctor gives it in the room.", **page), 401
-            in_progress = start_attempt(assessment, student)
+            kind = start_kind(assessment, attempts, accommodation)[0]
+            in_progress = start_attempt(assessment, student, retake=kind == "retake")
             in_progress.ip = client_ip()
             if accommodation and accommodation.extra_minutes:
                 in_progress.extra_minutes = accommodation.extra_minutes
             db.session.flush()
             add_event(in_progress, "started", f"{accommodation.extra_minutes} extra minute(s)" if accommodation and accommodation.extra_minutes else "")
-            log_event("attempt.started", f"assessment #{assessment.id} student {student.username} (test portal)")
+            if in_progress.is_retake:
+                add_event(in_progress, "retake", "practice, not counted" if in_progress.practice else "counts toward the grade")
+            log_event("attempt.started", f"assessment #{assessment.id} student {student.username} (test portal{', retake' if in_progress.is_retake else ''})")
         else:
             add_event(in_progress, "resumed")
         test_session.attempt = in_progress
@@ -778,12 +810,15 @@ def review(attempt_id):
     if attempt.status == "in_progress":
         return redirect(url_for("portal.take"))
     visible = attempt.assessment.results_visible()
+    entries = review_entries(attempt) if visible else []
     return render_template(
         "portal/review.html",
         attempt=attempt,
         assessment=attempt.assessment,
         visible=visible,
-        entries=review_entries(attempt) if visible else [],
+        entries=entries if visible else [],
+        keys_shown=bool(entries and entries[0]["show_key"]),
+        can_retake=attempt.assessment.retake_window_open() and start_kind(attempt.assessment, [a for a in attempt.assessment.attempts if a.user_id == attempt.user_id])[0] == "retake",
         in_seb=test_session.lockdown_ok and attempt.assessment.lockdown_browser == "seb",
     )
 

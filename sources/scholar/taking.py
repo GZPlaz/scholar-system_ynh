@@ -36,7 +36,8 @@ def ordered_entries(attempt):
 
 def review_entries(attempt, staff=False):
     entries = ordered_entries(attempt)
-    show_key = staff or attempt.assessment.show_correct_answers
+    assessment = attempt.assessment
+    show_key = staff or assessment.show_correct_answers or (assessment.retake_show_correct and assessment.retake_window_open())
     for entry in entries:
         question = entry["question"]
         answer = entry["answer"]

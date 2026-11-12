@@ -91,6 +91,21 @@
       <label class="check mt"><input type="checkbox" name="show_correct_answers" value="1" {{ checked('show_correct_answers', a.show_correct_answers if a else False) }}> Reveal correct answers and explanations when results are shown</label>
     </div>
     <div class="section">
+      <h3>Retakes</h3>
+      {% set rm = val('retake_mode', a.retake_mode if a else '') %}
+      <p class="small muted">After the test has closed, students can sign in again with the test code and their student ID, see which answers were right and wrong, and take it again.</p>
+      <label class="check"><input type="radio" name="retake_mode" value="" {{ 'checked' if not rm }}> No retakes</label>
+      <label class="check"><input type="radio" name="retake_mode" value="practice" {{ 'checked' if rm == 'practice' }}> Retakes for practice <span class="small muted">(they never change a grade, in Scholar or RosarioSIS)</span></label>
+      <label class="check"><input type="radio" name="retake_mode" value="counts" {{ 'checked' if rm == 'counts' }}> Retakes that count <span class="small muted">(the grade follows your best-or-latest-attempt setting)</span></label>
+      <div class="form-row mt">
+        <div class="field"><label for="rto">Retakes open</label><input type="datetime-local" id="rto" name="retake_opens_at" value="{{ val('retake_opens_at', to_input_value(a.retake_opens_at) if a else '') }}"><div class="help">Empty = as soon as the test has closed.</div></div>
+        <div class="field"><label for="rtc">Retakes close</label><input type="datetime-local" id="rtc" name="retake_closes_at" value="{{ val('retake_closes_at', to_input_value(a.retake_closes_at) if a else '') }}"><div class="help">Empty = until you turn retakes off.</div></div>
+      </div>
+      <div class="field" style="max-width:240px"><label for="rtm">Retakes per student</label><input type="number" id="rtm" name="retake_max_attempts" min="0" max="20" value="{{ val('retake_max_attempts', a.retake_max_attempts if a else 1) }}"><div class="help">0 = as many as they like. The time limit still applies.</div></div>
+      <label class="check"><input type="checkbox" name="retake_prefill" value="1" {{ checked('retake_prefill', a.retake_prefill if a else True) }}> Start each retake with the student's earlier answers filled in</label>
+      <label class="check"><input type="checkbox" name="retake_show_correct" value="1" {{ checked('retake_show_correct', a.retake_show_correct if a else False) }}> Show the correct answers while retakes are open <span class="small muted">(otherwise students see only which of their answers were right or wrong)</span></label>
+    </div>
+    <div class="section">
       <button class="btn btn-primary" type="submit" style="width:100%;justify-content:center">{{ 'Save settings' if assessment else 'Create assessment' }}</button>
     </div>
   </div>

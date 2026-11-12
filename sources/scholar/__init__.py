@@ -11,15 +11,16 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from .config import build_config
 from .extensions import csrf, db, login_manager
 
-__version__ = "1.9.0"
+__version__ = "1.10.0"
 STAFF_PREFIX = "/staff"
 # 2: answer_sheets, sheet_scans; 3: api_tokens, users/courses.external_id;
 # 4: test portal (test_sessions, attempt_events, portal_failures, PINs, security settings);
 # 5: lockdown browser, access passwords, one sitting, restricted navigation, accommodations;
 # 6: tests made from a PDF (assessment_pdfs, assessment_pdf_pages);
 # 7: change log for connected systems (sync_events);
-# 8: two-step sign-in, sign-in throttling, session versions, token limits, question credit fixes
-SCHEMA_VERSION = 8
+# 8: two-step sign-in, sign-in throttling, session versions, token limits, question credit fixes;
+# 9: retakes after the test (assessments.retake_*, attempts.is_retake / practice)
+SCHEMA_VERSION = 9
 
 
 class PrefixMiddleware:
@@ -285,6 +286,15 @@ SCHEMA_4_COLUMNS = [
     ("api_tokens", "read_only", "BOOLEAN NOT NULL DEFAULT FALSE"),
     ("api_tokens", "allowed_networks", "TEXT NOT NULL DEFAULT ''"),
     ("api_tokens", "last_used_ip", "VARCHAR(64) NOT NULL DEFAULT ''"),
+    # schema 9
+    ("assessments", "retake_mode", "VARCHAR(10) NOT NULL DEFAULT ''"),
+    ("assessments", "retake_opens_at", "TIMESTAMP"),
+    ("assessments", "retake_closes_at", "TIMESTAMP"),
+    ("assessments", "retake_max_attempts", "INTEGER NOT NULL DEFAULT 1"),
+    ("assessments", "retake_prefill", "BOOLEAN NOT NULL DEFAULT TRUE"),
+    ("assessments", "retake_show_correct", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("attempts", "is_retake", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("attempts", "practice", "BOOLEAN NOT NULL DEFAULT FALSE"),
 ]
 
 

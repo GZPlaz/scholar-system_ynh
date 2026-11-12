@@ -15,11 +15,13 @@
   <div><b>{{ attempt.percent|pct }}{{ attempt.percent|letter_grade if not attempt.needs_grading }}</b><span>{{ attempt.score|num }} of {{ attempt.max_score|num }} points</span></div>
   {% if attempt.needs_grading %}<div class="attn"><span>Some answers are still being graded; this score may go up.</span></div>{% endif %}
 </div>
-  {% if not assessment.show_correct_answers %}<p class="muted small">Your teacher has chosen not to show the correct answers for this test.</p>{% endif %}
+  {% if attempt.is_retake %}<p class="muted small">This was a retake{{ ' for practice: it does not change your grade' if attempt.practice else '' }}.</p>{% endif %}
+  {% if not keys_shown %}<p class="muted small">Your teacher has chosen not to show the correct answers for this test. You can see which of your answers were right and wrong.</p>{% endif %}
   {% with grading=False %}{% include "_attempt_items.html" %}{% endwith %}
 {% endif %}
 <div class="actions mt">
   {% if in_seb %}<a class="btn btn-primary" href="{{ url_for('portal.seb_quit') }}">Exit Safe Exam Browser</a>{% endif %}
+  {% if can_retake %}<a class="btn btn-primary" href="{{ url_for('portal.lobby') }}">Retake the test</a>{% endif %}
   <a class="btn" href="{{ url_for('portal.lobby') }}">Back to the test</a>
   <form method="post" action="{{ url_for('portal.leave') }}" class="inline">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

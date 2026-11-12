@@ -305,6 +305,13 @@ class Assessment(db.Model):
     sequential = db.Column(db.Boolean, nullable=False, default=False)  # one question at a time, no going back
     focus_grace_seconds = db.Column(db.Integer, nullable=False, default=0)  # absences shorter than this don't count
     clock_stops_when_paused = db.Column(db.Boolean, nullable=False, default=False)
+    # --- retakes: after the test ends, students may sign in again, review and retake it ---
+    retake_mode = db.Column(db.String(10), nullable=False, default="")  # "" off | "practice" (no effect on grades) | "counts"
+    retake_opens_at = db.Column(db.DateTime)  # None: as soon as the test has closed
+    retake_closes_at = db.Column(db.DateTime)  # None: until the teacher turns retakes off
+    retake_max_attempts = db.Column(db.Integer, nullable=False, default=1)  # retakes per student; 0 = unlimited
+    retake_prefill = db.Column(db.Boolean, nullable=False, default=True)  # start with the student's earlier answers
+    retake_show_correct = db.Column(db.Boolean, nullable=False, default=False)  # reveal correct answers while retaking
 
     course = db.relationship("Course", back_populates="assessments")
     owner = db.relationship("User")
@@ -354,7 +361,20 @@ class Assessment(db.Model):
         code = self.access_code or ""
         return f"{code[:4]}-{code[4:]}" if len(code) == 8 else code
 
+    def retake_window_open(self, now=None):
+        """May students retake this test now? Retakes start once the test has closed (or at the set time)."""
+        now = now or utcnow()
+        if not self.retake_mode or self.status == "draft" or not self.allow_online:
+            return False
+        if self.retake_closes_at and now >= self.retake_closes_at:
+            return False
+        if self.retake_opens_at:
+            return now >= self.retake_opens_at
+        return self.window_state(now) == "closed"
+
     def results_visible(self, now=None):
+        if self.retake_window_open(now):
+            return True  # a retake is for learning from the last attempt: they may see what was right and wrong
         if self.results_released:
             return True
         if self.show_results == "immediately":
@@ -408,6 +428,8 @@ class Attempt(db.Model):
     score = db.Column(db.Float, nullable=False, default=0.0)
     max_score = db.Column(db.Float, nullable=False, default=0.0)
     needs_grading = db.Column(db.Boolean, nullable=False, default=False)
+    is_retake = db.Column(db.Boolean, nullable=False, default=False)  # taken after the test ended, in the retake window
+    practice = db.Column(db.Boolean, nullable=False, default=False)  # a retake that does not count toward grades
     item_order = db.Column(db.Text, nullable=False, default="[]")
     choice_order = db.Column(db.Text, nullable=False, default="{}")
     entered_by_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
@@ -668,6 +690,7 @@ class TestSession(db.Model):
 
 EVENT_LABELS = {
     "started": "Started",
+    "retake": "Started as a retake",
     "resumed": "Resumed",
     "submitted": "Submitted",
     "focus_lost": "Left the test page",

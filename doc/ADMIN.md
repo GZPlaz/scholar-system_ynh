@@ -72,6 +72,17 @@ Tips for instructors:
 - A photo is stored after it is straightened (about 200 KB), so you can always see what a recorded answer was based on.
 - Uploads are limited to 25 MB per photo; the scan page shrinks photos in the browser before sending them.
 
+### Retakes after the test
+
+Under an assessment's **Settings → Retakes**, choose:
+
+- **No retakes** (the default), **Retakes for practice** (a retake never changes a grade, in Scholar or in RosarioSIS) or **Retakes that count** (the grade follows the platform's best-or-latest-attempt setting; with *best*, a retake can only raise a grade).
+- **Retakes open / close.** Empty means: open as soon as the test has closed, and stay open until you turn retakes off. Set times to give a revision week, for example.
+- **Retakes per student** (0 = as many as they like) and whether each retake **starts with the student's earlier answers filled in** (the answers from their most recent submitted attempt; they can change any of them). The test's time limit applies to every retake.
+- **Show the correct answers while retakes are open.** Whatever you choose, while retakes are open students can sign in again and see their score and which of their answers were right or wrong, even if results are otherwise hidden. Off, they do not see the answer key.
+
+Students use the same test portal: after the test closes they sign in with the test code and student ID as before, and the page offers the retake and links their earlier attempts for review. All the test's security settings (PIN, password, full screen, Safe Exam Browser, network limits) still apply to a retake. A retake that counts is sent to RosarioSIS like any other new grade; a practice retake is marked *retake, practice* in the results and never reaches the gradebook.
+
 ### Security of the staff site
 
 **Administration → Security** shows who can get in and how, and holds the rules.
