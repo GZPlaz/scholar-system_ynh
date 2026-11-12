@@ -11,14 +11,15 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from .config import build_config
 from .extensions import csrf, db, login_manager
 
-__version__ = "1.8.1"
+__version__ = "1.9.0"
 STAFF_PREFIX = "/staff"
 # 2: answer_sheets, sheet_scans; 3: api_tokens, users/courses.external_id;
 # 4: test portal (test_sessions, attempt_events, portal_failures, PINs, security settings);
 # 5: lockdown browser, access passwords, one sitting, restricted navigation, accommodations;
 # 6: tests made from a PDF (assessment_pdfs, assessment_pdf_pages);
-# 7: change log for connected systems (sync_events)
-SCHEMA_VERSION = 7
+# 7: change log for connected systems (sync_events);
+# 8: two-step sign-in, sign-in throttling, session versions, token limits, question credit fixes
+SCHEMA_VERSION = 8
 
 
 class PrefixMiddleware:
@@ -76,6 +77,7 @@ def create_app(overrides=None):
 
     app.before_request(auth.try_sso_login)
     app.before_request(auth.keep_students_out)
+    app.before_request(auth.guard_session)
     _register_template_helpers(app)
     _register_error_handlers(app)
     _register_cli(app)
@@ -85,7 +87,28 @@ def create_app(overrides=None):
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "same-origin")
         response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+        response.headers.setdefault("Cross-Origin-Resource-Policy", "same-origin")
+        response.headers.setdefault("X-Permitted-Cross-Domain-Policies", "none")
+        if request.is_secure:
+            response.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
         endpoint = request.endpoint or ""
+        if endpoint.startswith("api."):
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+        elif endpoint != "static" and not endpoint.startswith("portal."):
+            # The staff site: scripts only from this server (none inline), no plugins, no framing by
+            # other sites, forms post only here. Pages hold student data, so nothing is cached.
+            response.headers.setdefault(
+                "Content-Security-Policy",
+                "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+                "img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self'; "
+                "worker-src 'self' blob:; object-src 'none'; frame-ancestors 'self'; form-action 'self'; base-uri 'none'",
+            )
+            response.headers.setdefault(
+                "Permissions-Policy", "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), display-capture=()"
+            )
+            response.headers.setdefault("Cache-Control", "no-store, max-age=0")
         if endpoint.startswith("portal.") or endpoint == "assessments.preview":
             # The test portal: nothing cached, nothing framed, no third-party anything, no
             # inline scripts, and the browser features a test never needs switched off.
@@ -131,6 +154,14 @@ def _register_template_helpers(app):
     @app.template_filter("pct")
     def pct_filter(value, digits=1):
         return "—" if value is None else f"{value:.{digits}f}%"
+
+    @app.template_filter("letter_grade")
+    def letter_grade(value):
+        """The letter for a percentage (when a grade scale is set), ready to follow the number."""
+        from .utils import letter_for
+
+        letter = letter_for(value)
+        return Markup(f' <span class="letter-grade">{escape(letter)}</span>') if letter else ""
 
     @app.template_filter("richtext")
     def richtext(value):
@@ -243,6 +274,17 @@ SCHEMA_4_COLUMNS = [
     ("attempts", "locked_at", "TIMESTAMP"),
     ("attempts", "position", "INTEGER NOT NULL DEFAULT 0"),
     ("test_sessions", "lockdown_ok", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    # schema 8
+    ("users", "totp_secret", "VARCHAR(64) NOT NULL DEFAULT ''"),
+    ("users", "totp_enabled", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("users", "totp_last_step", "INTEGER NOT NULL DEFAULT 0"),
+    ("users", "recovery_codes", "TEXT NOT NULL DEFAULT '[]'"),
+    ("users", "session_version", "INTEGER NOT NULL DEFAULT 0"),
+    ("assessment_items", "credit_mode", "VARCHAR(12) NOT NULL DEFAULT ''"),
+    ("api_tokens", "expires_at", "TIMESTAMP"),
+    ("api_tokens", "read_only", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("api_tokens", "allowed_networks", "TEXT NOT NULL DEFAULT ''"),
+    ("api_tokens", "last_used_ip", "VARCHAR(64) NOT NULL DEFAULT ''"),
 ]
 
 

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Two-step sign-in{% endblock %}
+{% block content %}
+<div class="signin">
+  <p class="institution">{{ institution_name }}</p>
+  <h1>Enter your sign-in code</h1>
+  <p class="muted">Open your authenticator app and type the six-digit code it shows for Scholar. If you don't have your phone, type one of your recovery codes instead.</p>
+  <form method="post" action="{{ url_for('auth.second_step') }}" class="mt" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="field">
+      <label for="code">Code</label>
+      <input type="text" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" autocapitalize="none" spellcheck="false" maxlength="16" required autofocus>
+    </div>
+    <button type="submit" class="btn btn-primary">Sign in</button>
+  </form>
+  <div class="alt"><a class="btn" href="{{ url_for('auth.login') }}">Start again</a></div>
+</div>
+{% endblock %}

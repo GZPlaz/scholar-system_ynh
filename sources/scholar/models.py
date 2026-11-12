@@ -61,6 +61,14 @@ class User(UserMixin, db.Model):
     # Students only: hash of the personal test-portal PIN (never stored in clear)
     pin_hash = db.Column(db.String(256))
     pin_set_at = db.Column(db.DateTime)
+    # Two-step sign-in (staff): base32 secret for the authenticator app, hashed one-time recovery
+    # codes (JSON list), and the last time step used, so a code can't be used twice.
+    totp_secret = db.Column(db.String(64), nullable=False, default="")
+    totp_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    totp_last_step = db.Column(db.Integer, nullable=False, default=0)
+    recovery_codes = db.Column(db.Text, nullable=False, default="[]")
+    # Raised to sign the user out everywhere (password change, two-step change, an administrator's request).
+    session_version = db.Column(db.Integer, nullable=False, default=0)
 
     @property
     def is_active(self):
@@ -365,6 +373,9 @@ class AssessmentItem(db.Model):
     question_id = db.Column(db.Integer, db.ForeignKey("questions.id"), nullable=False)
     position = db.Column(db.Integer, nullable=False, default=0)
     points = db.Column(db.Float)  # override of question.points
+    # A question fixed after the test: "" (scored normally), "all" (everyone gets full credit)
+    # or "drop" (taken out of the test: worth nothing, the total shrinks).
+    credit_mode = db.Column(db.String(12), nullable=False, default="")
 
     assessment = db.relationship("Assessment", back_populates="items")
     question = db.relationship("Question", back_populates="items")
@@ -372,6 +383,13 @@ class AssessmentItem(db.Model):
 
     @property
     def effective_points(self):
+        if self.credit_mode == "drop":
+            return 0.0
+        return self.points if self.points is not None else self.question.points
+
+    @property
+    def listed_points(self):
+        """The points the question was set to, whether or not it has been dropped since."""
         return self.points if self.points is not None else self.question.points
 
 
@@ -568,8 +586,24 @@ class ApiToken(db.Model):
     created_by_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
     last_used_at = db.Column(db.DateTime)
     revoked = db.Column(db.Boolean, nullable=False, default=False)
+    expires_at = db.Column(db.DateTime)  # None = no expiry
+    read_only = db.Column(db.Boolean, nullable=False, default=False)  # may only read (GET)
+    allowed_networks = db.Column(db.Text, nullable=False, default="")  # IPs / CIDR ranges, one per line; empty = anywhere
+    last_used_ip = db.Column(db.String(64), nullable=False, default="")
 
     created_by = db.relationship("User")
+
+
+class LoginFailure(db.Model):
+    """A rejected staff sign-in (wrong password or wrong two-step code), for throttling and the security page."""
+
+    __tablename__ = "login_failures"
+
+    id = db.Column(db.Integer, primary_key=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow, index=True)
+    username = db.Column(db.String(120), nullable=False, default="", index=True)  # lower case, as typed
+    ip = db.Column(db.String(64), nullable=False, default="", index=True)
+    kind = db.Column(db.String(20), nullable=False, default="password")  # password | code
 
 
 class SyncEvent(db.Model):

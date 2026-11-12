@@ -13,7 +13,7 @@
   </div>
 </div>
 <div class="tally">
-  <div><b>{{ attempt.percent|pct }}</b><span>{{ attempt.score|num }} of {{ attempt.max_score|num }} points</span></div>
+  <div><b>{{ attempt.percent|pct }}{{ attempt.percent|letter_grade if not attempt.needs_grading }}</b><span>{{ attempt.score|num }} of {{ attempt.max_score|num }} points</span></div>
   {% if attempt.needs_grading %}<div class="attn"><span>Some answers still need a grade.</span></div>{% endif %}
 </div>
 {% if attempt.status != 'submitted' %}

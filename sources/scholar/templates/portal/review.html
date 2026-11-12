@@ -12,7 +12,7 @@
 </section>
 {% else %}
 <div class="tally">
-  <div><b>{{ attempt.percent|pct }}</b><span>{{ attempt.score|num }} of {{ attempt.max_score|num }} points</span></div>
+  <div><b>{{ attempt.percent|pct }}{{ attempt.percent|letter_grade if not attempt.needs_grading }}</b><span>{{ attempt.score|num }} of {{ attempt.max_score|num }} points</span></div>
   {% if attempt.needs_grading %}<div class="attn"><span>Some answers are still being graded; this score may go up.</span></div>{% endif %}
 </div>
   {% if not assessment.show_correct_answers %}<p class="muted small">Your teacher has chosen not to show the correct answers for this test.</p>{% endif %}

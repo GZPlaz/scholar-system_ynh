@@ -14,10 +14,11 @@
 </div>
 <section class="section">
   <div class="section-head"><h2>Questions</h2></div>
+  <p class="small muted">A question that turned out wrong or unfair can be fixed under <strong>Scoring</strong>: give everyone full credit for it, or drop it so it no longer counts. Every submitted attempt is re-scored at once{{ '' }}.</p>
   <p class="small muted"><strong>p</strong> is difficulty, the share of available points students earned. <strong>r<sub>pb</sub></strong> is the corrected point-biserial: how well the question separates students who did well on the rest of the test from those who didn't. <strong>D</strong> is the difference between the top and bottom 27% of students.</p>
   <div class="table-wrap">
   <table class="table">
-    <thead><tr><th class="num">#</th><th>Question</th><th>Standards</th><th class="num">p</th><th class="num">r<sub>pb</sub></th><th class="num">D</th><th class="num">Omitted</th><th>Check</th></tr></thead>
+    <thead><tr><th class="num">#</th><th>Question</th><th>Standards</th><th class="num">p</th><th class="num">r<sub>pb</sub></th><th class="num">D</th><th class="num">Omitted</th><th>Check</th><th>Scoring</th></tr></thead>
     <tbody>
     {% for e in data['items'] %}
     <tr>
@@ -29,6 +30,17 @@
       <td class="num">{{ '%.2f'|format(e.d_index) if e.d_index is not none else '–' }}</td>
       <td class="num">{{ e.omitted }}</td>
       <td class="small">{% for f in e.flags %}<div class="{{ 'attn' if 'key' in f or 'Low' in f or 'grading' in f }}">{{ f }}</div>{% endfor %}</td>
+      <td class="nowrap">
+        <form method="post" action="{{ url_for('assessments.item_credit', assessment_id=assessment.id, item_id=e.item.id) }}" class="inline" data-confirm="Change how this question counts and re-score every submitted attempt?">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <select name="mode" aria-label="How question {{ e.number }} counts" class="compact-select">
+            <option value="" {{ 'selected' if not e.item.credit_mode }}>Normal</option>
+            <option value="all" {{ 'selected' if e.item.credit_mode == 'all' }}>Full credit to all</option>
+            <option value="drop" {{ 'selected' if e.item.credit_mode == 'drop' }}>Drop</option>
+          </select>
+          <button class="btn btn-sm" type="submit">Apply</button>
+        </form>
+      </td>
     </tr>
     {% endfor %}
     </tbody>

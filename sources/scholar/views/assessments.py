@@ -36,6 +36,8 @@ from ..utils import (
     csv_response,
     fmt_num,
     format_dt,
+    grade_scale,
+    letter_for,
     log_event,
     parse_bool,
     parse_float,
@@ -524,6 +526,9 @@ def results(assessment_id):
     if request.args.get("format") == "csv":
         items = list(assessment.items)
         header = ["username", "full_name", "student_number", "status", "attempt", "source", "submitted_at", "score", "max_score", "percent"]
+        letters = bool(grade_scale())
+        if letters:
+            header.append("grade")
         header += [f"Q{i + 1}" for i in range(len(items))]
         data = []
         for row in rows:
@@ -532,9 +537,11 @@ def results(assessment_id):
             if attempt:
                 rmap = attempt.response_map()
                 line += [attempt.number, attempt.source, format_dt(attempt.submitted_at, "%Y-%m-%d %H:%M"), fmt_num(attempt.score), fmt_num(attempt.max_score), f"{attempt.percent:.1f}"]
+                if letters:
+                    line.append("" if attempt.needs_grading else letter_for(attempt.percent))
                 line += [fmt_num(rmap[i.id].points_awarded) if i.id in rmap and rmap[i.id].points_awarded is not None else "" for i in items]
             else:
-                line += ["", "", "", "", fmt_num(assessment.max_score), ""] + [""] * len(items)
+                line += ["", "", "", "", fmt_num(assessment.max_score), ""] + ([""] if letters else []) + [""] * len(items)
             data.append(line)
         return csv_response(f"{safe_filename(assessment.course.code + '_' + assessment.title)}_results.csv", header, data)
     summary = score_summary([r["counted"].percent for r in rows if r["counted"]])
@@ -601,6 +608,30 @@ def regrade(assessment_id):
     db.session.commit()
     flash(f"{count} submitted attempt(s) re-scored against the current answer key.", "success")
     return redirect(url_for("assessments.results", assessment_id=assessment.id))
+
+
+CREDIT_MODES = {"": "Scored normally", "all": "Everyone gets full credit", "drop": "Dropped from the test"}
+
+
+@bp.route("/<int:assessment_id>/items/<int:item_id>/credit", methods=["POST"])
+@staff_required
+def item_credit(assessment_id, item_id):
+    """Fix a bad question after the test: give everyone the points, or take it out of the test."""
+    assessment = get_assessment(assessment_id)
+    item = db.session.get(AssessmentItem, item_id)
+    mode = request.form.get("mode", "")
+    if item is None or item.assessment_id != assessment.id or mode not in CREDIT_MODES:
+        abort(404)
+    if mode == "drop" and all(i.credit_mode == "drop" or i.id == item.id for i in assessment.items):
+        flash("A test needs at least one question that counts.", "error")
+        return redirect(url_for("assessments.analysis", assessment_id=assessment.id))
+    item.credit_mode = mode
+    count = regrade_assessment(assessment)
+    number = [i.id for i in assessment.items].index(item.id) + 1
+    log_event("assessment.question_credit", f"#{assessment.id} question {number}: {CREDIT_MODES[mode].lower()}, {count} attempt(s) re-scored")
+    db.session.commit()
+    flash(f"Question {number}: {CREDIT_MODES[mode].lower()}. {count} submitted attempt(s) re-scored.", "success")
+    return redirect(url_for("assessments.analysis", assessment_id=assessment.id))
 
 
 # --------------------------------------------------------------------------- grading

@@ -72,6 +72,24 @@ Tips for instructors:
 - A photo is stored after it is straightened (about 200 KB), so you can always see what a recorded answer was based on.
 - Uploads are limited to 25 MB per photo; the scan page shrinks photos in the browser before sending them.
 
+### Security of the staff site
+
+**Administration → Security** shows who can get in and how, and holds the rules.
+
+- **Two-step sign-in.** Every instructor and administrator can turn it on under **My account → Two-step sign-in**: scan the QR code with any authenticator app (or type the key), enter the six-digit code, and save the ten recovery codes that are shown once. From then on a password sign-in also asks for the app's code; a recovery code works once in its place. Tick **Require two-step sign-in** to make it compulsory: staff without it are taken to the setup page when they sign in. It applies to sign-ins with a username and password (Scholar passwords and YunoHost passwords). People who arrive through the YunoHost portal are signed in by the portal and are not asked for a code. If someone loses their phone and their recovery codes, **Reset two-step** on the Security page lets them set it up again.
+- **Wrong passwords and codes.** After 5 wrong tries for one account from one address within 15 minutes, that address must wait (20 for one account from anywhere, 40 from one address for any accounts). This works inside Scholar, in addition to fail2ban, which bans the address at the firewall. The Security page lists rejected sign-ins and lets you clear a hold.
+- **Sessions.** Staff are signed out after 120 minutes without activity (change it, or set 0, on the Security page). Changing a password, a role, a sign-in method or two-step sign-in signs that account out of every other browser. **Sign out** next to an account, or **Sign everyone else out**, does it on demand.
+- **Passwords** for Scholar accounts need 10 characters, must not be a common password and must not contain the person's name or username.
+- **API tokens** (Administration → Integrations → *Limit this token*) can expire after a number of days, be read-only, and be accepted only from listed addresses. For the RosarioSIS plugin, listing the RosarioSIS server's address is a good idea; read-only is not, since the plugin sets rosters.
+- **Browser protections.** Staff pages are sent with a Content-Security-Policy that only allows scripts from Scholar itself, are never cached, and can't be framed by other sites; over HTTPS, browsers are told to keep using HTTPS. Spreadsheet exports neutralise cells that a spreadsheet would run as formulas.
+
+The two-step secrets live in Scholar's database (they have to be readable to check a code), so keep database backups as private as the server itself.
+
+### Letter grades and fixing questions
+
+- **Letter grades:** under **Administration → Settings → Letter grades**, enter one letter per line with the lowest percentage that earns it (`A 90`, `B 80`, …). Leave it empty for percentages only.
+- **Fixing a question after the test:** on an assessment's **Item analysis** page, the **Scoring** column of each question offers *Full credit to all* (everyone gets the points, including students who skipped it) and *Drop* (the question no longer counts and the test is worth that much less). Both re-score every submitted attempt immediately and can be undone by choosing *Normal* again. A hand-entered score for that question is replaced while the fix is on.
+
 ### Connecting RosarioSIS
 
 Scholar can be linked to a RosarioSIS student information system with the [RosarioSIS Scholar plugin](https://github.com/GZPlaz/RosarioSIS-scholar-plugin). Once linked, RosarioSIS course periods become Scholar courses (teacher and students included), and Scholar test results are written into the RosarioSIS gradebook.

@@ -42,6 +42,12 @@ def grade_answer(item, answer):
     points = item.effective_points
     qtype = question.qtype
 
+    # A question fixed after the test: everyone gets it, or nobody is scored on it.
+    if item.credit_mode == "all":
+        return points, True, False
+    if item.credit_mode == "drop":
+        return 0.0, None, False
+
     if is_blank(answer):
         return 0.0, False, False
 
@@ -91,7 +97,7 @@ def grade_answer(item, answer):
 
 
 def grade_response(response, keep_manual=True):
-    if keep_manual and response.manually_graded:
+    if keep_manual and response.manually_graded and not response.item.credit_mode:
         return
     points, correct, pending = grade_answer(response.item, response.get_answer())
     response.points_awarded = points
@@ -99,6 +105,14 @@ def grade_response(response, keep_manual=True):
     response.needs_grading = pending
     if not keep_manual:
         response.manually_graded = False
+
+
+def _cover_credited_items(attempt):
+    """A question everyone gets credit for counts for students who left it blank too."""
+    answered = {r.item_id for r in attempt.responses}
+    for item in attempt.assessment.items:
+        if item.credit_mode == "all" and item.id not in answered:
+            db.session.add(Response(attempt=attempt, item=item))
 
 
 def recompute_attempt(attempt):
@@ -109,6 +123,7 @@ def recompute_attempt(attempt):
 
 def finalize_attempt(attempt, when=None):
     """Grade every response and mark the attempt as submitted."""
+    _cover_credited_items(attempt)
     for response in attempt.responses:
         grade_response(response)
     attempt.status = "submitted"
@@ -121,6 +136,7 @@ def regrade_assessment(assessment, keep_manual=True):
     for attempt in assessment.attempts:
         if attempt.status != "submitted":
             continue
+        _cover_credited_items(attempt)
         for response in attempt.responses:
             grade_response(response, keep_manual=keep_manual)
         recompute_attempt(attempt)

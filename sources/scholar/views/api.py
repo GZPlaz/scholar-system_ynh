@@ -5,6 +5,7 @@ under Administration > Integrations. Records from the other system are matched b
 ``external_id`` (for example ``rosario:student:42``), never by display names.
 """
 import hashlib
+import logging
 import re
 import secrets
 from datetime import timezone
@@ -16,10 +17,12 @@ from .. import __version__
 from ..extensions import csrf, db
 from ..grading import counted_attempts, enforce_deadlines
 from .. import syncevents
+from ..security import ip_allowed
 from ..models import ApiToken, Course, Enrollment, SyncEvent, User, utcnow
 from ..utils import get_setting, log_event
 
 bp = Blueprint("api", __name__, url_prefix="/api/v1")
+log = logging.getLogger("scholar.auth")
 csrf.exempt(bp)
 
 USERNAME_RE = re.compile(r"^[A-Za-z0-9._@-]{1,120}$")
@@ -64,11 +67,19 @@ def token_required(view):
         if not header.startswith("Bearer "):
             return jsonify({"error": "Missing bearer token"}), 401
         token = ApiToken.query.filter_by(token_hash=hash_token(header[7:].strip()), revoked=False).first()
-        if token is None:
-            return jsonify({"error": "Invalid or revoked token"}), 401
         now = utcnow()
-        if token.last_used_at is None or (now - token.last_used_at).total_seconds() > 60:
+        if token is None or (token.expires_at is not None and token.expires_at <= now):
+            # (not the fail2ban wording: a connected server with an old token must not get itself banned)
+            log.warning("Rejected API token from %s", request.remote_addr)
+            return jsonify({"error": "Invalid, expired or revoked token"}), 401
+        if token.allowed_networks and not ip_allowed(request.remote_addr or "", token.allowed_networks):
+            log.warning("API token %s used from %s, which is not on its list", token.name, request.remote_addr)
+            return jsonify({"error": "This token may not be used from this address"}), 403
+        if token.read_only and request.method not in ("GET", "HEAD", "OPTIONS"):
+            return jsonify({"error": "This token is read-only"}), 403
+        if token.last_used_at is None or (now - token.last_used_at).total_seconds() > 60 or token.last_used_ip != (request.remote_addr or ""):
             token.last_used_at = now
+            token.last_used_ip = (request.remote_addr or "")[:64]
             db.session.commit()
         g.api_token = token
         return view(*args, **kwargs)

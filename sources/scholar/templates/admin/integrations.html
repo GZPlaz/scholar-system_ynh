@@ -27,6 +27,13 @@
       <input type="hidden" name="action" value="create">
       <input type="text" name="name" placeholder="RosarioSIS" maxlength="120" required aria-label="Token name" style="max-width:260px">
       <button class="btn btn-primary" type="submit">Create token</button>
+      <details class="mt" style="flex-basis:100%"><summary class="small">Limit this token</summary>
+        <div class="form-row mt">
+          <div class="field"><label for="expires_days">Expires after (days)</label><input type="number" id="expires_days" name="expires_days" min="0" max="3650" placeholder="never"><div class="help">Empty: it works until you revoke it.</div></div>
+          <div class="field"><label for="allowed_networks">Only from these addresses</label><textarea id="allowed_networks" name="allowed_networks" rows="2" style="min-height:3rem" placeholder="203.0.113.7&#10;192.0.2.0/24"></textarea><div class="help">The other server's IP address, one per line. Empty: from anywhere.</div></div>
+        </div>
+        <label class="check"><input type="checkbox" name="read_only" value="1"> Read-only (can read courses and results, can't change anything). Not for the RosarioSIS plugin, which sets rosters.</label>
+      </details>
     </form>
     <p class="small muted mt">A token can create and update courses, set rosters (creating accounts) and read results. Treat it like an administrator password.</p>
   </section>
@@ -90,8 +97,9 @@
       <td><strong>{{ t.name }}</strong>{% if t.created_by %} <span class="small muted">by {{ t.created_by.username }}</span>{% endif %}</td>
       <td><code>{{ t.prefix }}…</code></td>
       <td class="small">{{ t.created_at|dt }}</td>
-      <td class="small">{{ t.last_used_at|dt if t.last_used_at else 'Never' }}</td>
-      <td>{% if t.revoked %}<span class="badge">Revoked</span>{% else %}<span class="badge badge-green">Active</span>{% endif %}</td>
+      <td class="small">{{ t.last_used_at|dt if t.last_used_at else 'Never' }}{% if t.last_used_ip %}<br><span class="muted">from {{ t.last_used_ip }}</span>{% endif %}</td>
+      <td>{% if t.revoked %}<span class="badge">Revoked</span>{% elif t.expires_at and t.expires_at <= now %}<span class="badge">Expired</span>{% else %}<span class="badge badge-green">Active</span>{% endif %}
+        <span class="small muted">{{ 'read-only' if t.read_only }}{{ ' · ' if t.read_only and (t.expires_at or t.allowed_networks) }}{% if t.expires_at and not t.revoked and t.expires_at > now %}until {{ t.expires_at|dt('%b %d, %Y') }}{% endif %}{{ ' · ' if t.expires_at and t.allowed_networks }}{% if t.allowed_networks %}{{ t.allowed_networks.split()|length }} address{{ 'es' if t.allowed_networks.split()|length != 1 }}{% endif %}</span></td>
       <td class="right">{% if not t.revoked %}{{ post_button(url_for('admin.integrations'), 'Revoke', cls='btn btn-sm btn-danger', confirm='Revoke ' ~ t.name ~ '? Systems using it lose access at once.', fields={'action': 'revoke', 'token_id': t.id}) }}{% endif %}</td>
     </tr>
     {% else %}

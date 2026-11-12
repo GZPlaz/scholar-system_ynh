@@ -601,3 +601,11 @@ body.scanner-open { overflow: hidden; }
 .key-row.missing[data-type="essay"] td { background: none; }
 .key-points { width: 5em; }
 @media (max-width: 1000px) { .key-layout { grid-template-columns: 1fr; } .key-pages { position: static; max-height: 60vh; } }
+
+/* recovery codes */
+.codes { list-style: none; padding: 0; margin: 12px 0 16px; display: grid; grid-template-columns: repeat(2, max-content); gap: 6px 28px; }
+.codes code { font-size: 1.02rem; user-select: all; }
+
+/* letter grade beside a percentage */
+.letter-grade { display: inline-block; min-width: 1.4em; margin-left: 4px; padding: 0 5px; border: 1px solid var(--graphite); border-radius: 3px; font-weight: 600; font-size: 0.85em; text-align: center; }
+.compact-select { width: auto; padding: 2px 6px; font-size: 0.85rem; }

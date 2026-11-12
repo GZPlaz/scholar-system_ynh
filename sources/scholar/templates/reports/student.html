@@ -16,7 +16,7 @@
       <tbody>{% for r in rows %}
       <tr><td>{{ r.assessment.title }}</td>
         <td class="small">{% for a in r.attempts %}<a href="{{ url_for('assessments.attempt_detail', assessment_id=r.assessment.id, attempt_id=a.id) }}">{{ a.number }}</a>{% if a.status == 'in_progress' %} (in progress){% endif %}{{ ', ' if not loop.last }}{% else %}<span class="muted">none</span>{% endfor %}</td>
-        <td class="num">{% if r.counted %}<strong>{{ r.counted.percent|pct }}</strong>{% else %}–{% endif %}</td></tr>
+        <td class="num">{% if r.counted %}<strong>{{ r.counted.percent|pct }}</strong>{{ r.counted.percent|letter_grade }}{% else %}–{% endif %}</td></tr>
       {% else %}<tr><td colspan="3" class="empty">No published assessments.</td></tr>{% endfor %}</tbody>
     </table>
   </section>

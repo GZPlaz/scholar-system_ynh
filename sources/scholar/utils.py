@@ -22,6 +22,9 @@ SETTING_DEFAULTS = {
     "ldap_default_role": "instructor",
     "attempt_policy": "best",  # best | latest — which attempt counts for reports
     "login_message": "",
+    "require_two_step": "0",  # staff who sign in with a password must set up two-step sign-in
+    "idle_timeout_minutes": "120",  # staff are signed out after this long without activity (0 = never)
+    "grade_scale": "",  # letter grades: one "A 90" per line (letter, lowest percent); empty = no letters
 }
 
 
@@ -49,6 +52,30 @@ def set_setting(key, value):
     else:
         row.value = str(value)
     g.setdefault("_settings_cache", {})[key] = str(value)
+
+
+def grade_scale():
+    """Letter grades as [(letter, lowest percent), …], highest first; empty when none are set."""
+    cache = g.setdefault("_grade_scale", {})
+    if "scale" not in cache:
+        scale = []
+        for line in (get_setting("grade_scale") or "").splitlines():
+            parts = line.split()
+            low = parse_float(parts[-1]) if len(parts) >= 2 else None
+            if low is not None:
+                scale.append((parts[0], low))
+        cache["scale"] = sorted(scale, key=lambda pair: -pair[1])
+    return cache["scale"]
+
+
+def letter_for(percent):
+    """The letter grade for a percentage, or "" when there is no scale (or no score)."""
+    if percent is None:
+        return ""
+    for letter, low in grade_scale():
+        if percent + 1e-9 >= low:
+            return letter
+    return ""
 
 
 def thresholds():
@@ -223,13 +250,22 @@ def read_csv_upload(field="file"):
     return rows
 
 
+def _csv_cell(value):
+    """Text that a spreadsheet would run as a formula (a name typed as "=HYPERLINK(…)") is made plain text."""
+    if value is None:
+        return ""
+    if isinstance(value, str) and value[:1] in ("=", "+", "-", "@", "\t", "\r") and parse_float(value) is None:
+        return "'" + value
+    return value
+
+
 def csv_response(filename, header, rows):
     buf = io.StringIO()
     buf.write("﻿")  # Excel-friendly BOM
     writer = csv.writer(buf)
     writer.writerow(header)
     for row in rows:
-        writer.writerow(["" if v is None else v for v in row])
+        writer.writerow([_csv_cell(v) for v in row])
     return FlaskResponse(
         buf.getvalue(),
         mimetype="text/csv",

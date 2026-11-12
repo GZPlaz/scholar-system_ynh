@@ -46,7 +46,7 @@ SIGNATURE_TOLERANCE = 300  # seconds a receiver should accept a timestamp
 _KEY = "scholar_sync_events"
 _ATTEMPT_FIELDS = ("status", "score", "max_score", "needs_grading", "submitted_at")
 _ASSESSMENT_FIELDS = ("status", "title", "opens_at", "closes_at")
-_ITEM_FIELDS = ("points", "position")
+_ITEM_FIELDS = ("points", "position", "credit_mode")
 
 
 # --------------------------------------------------------------------------- recording changes

@@ -24,6 +24,11 @@
     <label class="check"><input type="radio" name="attempt_policy" value="latest" {{ 'checked' if values.attempt_policy == 'latest' }}> their most recent attempt</label>
   </div>
 
+  <h2>Letter grades</h2>
+  <div class="field" style="max-width:320px"><label for="grade_scale">Grade scale</label>
+    <textarea id="grade_scale" name="grade_scale" rows="6" placeholder="A 90&#10;B 80&#10;C 70&#10;D 60&#10;F 0">{{ values.grade_scale }}</textarea>
+    <div class="help">One letter per line with the lowest percentage that earns it. Letters then appear beside percentages in results, gradebooks, student reports and exports. Leave empty to show percentages only.</div></div>
+
   <h2>YunoHost accounts</h2>
   <label class="check"><input type="checkbox" name="ldap_autoprovision" value="1" {{ 'checked' if values.ldap_autoprovision == '1' and values.ldap_default_role == 'instructor' }}> Let any YunoHost user who signs in become an instructor</label>
   <div class="help">Off: only YunoHost users added on the Users page can sign in. Students never sign in here, whatever this setting; they use the test portal.</div>

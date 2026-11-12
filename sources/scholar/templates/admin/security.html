@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% from "_macros.html" import post_button with context %}
+{% block title %}Security{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Security</h1>
+  <p class="facts"><span>Who can get into the staff site, and how.</span></p></div></div>
+{% include "admin/_nav.html" %}
+<div class="grid grid-2">
+  <section class="section">
+    <h2>At a glance</h2>
+    <table class="table kv">
+      <tr><th>Two-step sign-in</th><td>{{ staff|length - without_two_step|length }} of {{ staff|length }} staff accounts{% if without_two_step %} <span class="small muted">({{ without_two_step|length }} without)</span>{% endif %}</td></tr>
+      <tr><th>Rejected sign-ins, last 24 hours</th><td>{{ failures_today }}</td></tr>
+      <tr><th>Accounts held back now</th><td>{% if held %}{{ held|join(', ') }}{% else %}None{% endif %}</td></tr>
+      <tr><th>API tokens in use</th><td>{{ tokens|length }}{% set open_tokens = tokens|selectattr('expires_at', 'none')|list %}{% if open_tokens %} <span class="small muted">({{ open_tokens|length }} never expire)</span>{% endif %}</td></tr>
+      <tr><th>Connection</th><td>{% if https and secure_cookies %}<span class="badge badge-green">HTTPS, secure cookies</span>{% elif https %}<span class="badge">HTTPS, but cookies are not marked secure</span>{% else %}<span class="badge">Not HTTPS</span>{% endif %}</td></tr>
+      {% if default_key %}<tr><th>Secret key</th><td><strong>The built-in development key is in use.</strong> Set SCHOLAR_SECRET_KEY.</td></tr>{% endif %}
+    </table>
+  </section>
+  <form method="post" class="section">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="save">
+    <h2>Rules</h2>
+    <label class="check"><input type="checkbox" name="require_two_step" value="1" {{ 'checked' if values.require_two_step == '1' }}> Require two-step sign-in for every staff account that signs in with a password</label>
+    <div class="help">Staff without it are taken to the setup page when they next sign in. People who come in through the YunoHost portal are covered by the portal's own sign-in.</div>
+    <div class="field mt" style="max-width:260px"><label for="idle">Sign out after minutes without activity</label>
+      <input type="number" id="idle" name="idle_timeout_minutes" min="0" max="1440" value="{{ values.idle_timeout_minutes }}">
+      <div class="help">0 keeps people signed in for 12 hours whatever they do.</div></div>
+    <button class="btn btn-primary" type="submit">Save rules</button>
+  </form>
+</div>
+<section class="section">
+  <div class="section-head"><h2>Staff accounts</h2>
+    {{ post_button(url_for('admin.security'), 'Sign everyone else out', cls='btn btn-sm', confirm='Sign out every instructor and administrator except you? They have to sign in again.', fields={'action': 'sign_out_all'}) }}</div>
+  <div class="table-wrap"><table class="table">
+    <thead><tr><th>Account</th><th>Role</th><th>Signs in with</th><th>Two-step</th><th>Last sign-in</th><th></th></tr></thead>
+    <tbody>
+    {% for u in staff %}
+    <tr>
+      <td><strong>{{ u.display_name }}</strong> <span class="small muted">{{ u.username }}</span></td>
+      <td>{{ ROLES[u.role] }}</td>
+      <td class="small">{{ 'YunoHost account' if u.auth_source == 'ldap' else 'Scholar password' }}</td>
+      <td>{% if u.totp_enabled %}<span class="badge badge-green">On</span>{% else %}<span class="badge">Off</span>{% endif %}</td>
+      <td class="small">{{ u.last_login_at|dt if u.last_login_at else 'Never' }}</td>
+      <td class="right">
+        {% if u.totp_enabled %}{{ post_button(url_for('admin.security'), 'Reset two-step', confirm='Turn off two-step sign-in for ' ~ u.username ~ '? Use this when they lost their phone and their recovery codes.', fields={'action': 'reset_two_step', 'user_id': u.id}) }}{% endif %}
+        {% if u.id != current_user.id %}{{ post_button(url_for('admin.security'), 'Sign out', confirm='Sign ' ~ u.username ~ ' out of every browser?', fields={'action': 'sign_out', 'user_id': u.id}) }}{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+<section class="section">
+  <h2>Rejected sign-ins</h2>
+  <p class="small muted">After {{ 5 }} wrong passwords or codes for one account from one address in 15 minutes, that address has to wait. The server's fail2ban also bans addresses that keep failing.</p>
+  <div class="table-wrap"><table class="table">
+    <thead><tr><th>When</th><th>Username typed</th><th>From</th><th>What</th><th></th></tr></thead>
+    <tbody>
+    {% for f in recent %}
+    <tr><td class="small">{{ f.created_at|dt('%b %d %H:%M:%S') }}</td><td>{{ f.username or '–' }}</td><td class="small">{{ f.ip }}</td>
+      <td class="small">{{ 'Wrong two-step code' if f.kind == 'code' else 'Wrong password' }}</td>
+      <td class="right">{% if f.username in held %}{{ post_button(url_for('admin.security'), 'Let them try again', fields={'action': 'unlock', 'username': f.username}) }}{% endif %}</td></tr>
+    {% else %}
+    <tr><td colspan="5" class="empty">No rejected sign-ins on record.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endblock %}

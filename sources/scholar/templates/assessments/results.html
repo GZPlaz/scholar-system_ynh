@@ -39,7 +39,7 @@
       <td class="small">{% for a in r.attempts %}<a href="{{ url_for('assessments.attempt_detail', assessment_id=assessment.id, attempt_id=a.id) }}" title="{{ a.source }}, {{ a.status|replace('_', ' ') }}">{{ a.number }}{% if a.source == 'paper' %} (paper){% endif %}</a>{{ ', ' if not loop.last }}{% endfor %}</td>
       <td class="small">{{ c.submitted_at|dt if c else '–' }}</td>
       <td class="num">{% if c %}{{ c.score|num }} of {{ c.max_score|num }}{% else %}–{% endif %}</td>
-      <td class="num">{% if c %}<strong>{{ c.percent|pct }}</strong>{% else %}–{% endif %}</td>
+      <td class="num">{% if c %}<strong>{{ c.percent|pct }}</strong>{{ c.percent|letter_grade }}{% else %}–{% endif %}</td>
       <td class="right nowrap">{% if c %}<a class="btn btn-sm {{ 'btn-primary' if c.needs_grading }}" href="{{ url_for('assessments.attempt_detail', assessment_id=assessment.id, attempt_id=c.id) }}">{{ 'Grade' if c.needs_grading else 'View' }}</a>{% endif %}</td>
     </tr>
     {% else %}

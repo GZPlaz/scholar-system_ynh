@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Two-step sign-in{% endblock %}
+{% block main_class %}narrow{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Two-step sign-in</h1>
+  <p class="facts"><span>After your password, Scholar asks for a six-digit code from an authenticator app on your phone.</span></p></div>
+  <div class="actions"><a class="btn" href="{{ url_for('main.account') }}">My account</a></div></div>
+{% if new_codes %}
+<section class="section">
+  <h2>Your recovery codes</h2>
+  <p>Each code works once, in place of the app's code, if you lose your phone. <strong>Save them now</strong> (print them or keep them in a password manager): they are not shown again.</p>
+  <ul class="codes">{% for c in new_codes %}<li><code>{{ c }}</code></li>{% endfor %}</ul>
+  <a class="btn btn-primary" href="{{ url_for('main.two_step') }}">I have saved them</a>
+</section>
+{% elif current_user.totp_enabled %}
+<section class="section">
+  <h2><span class="badge badge-green">On</span></h2>
+  <p>You have {{ codes_left }} recovery code{{ 's' if codes_left != 1 }} left.{% if required %} Two-step sign-in is required for staff accounts.{% endif %}</p>
+  <form method="post" class="mt" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="field" style="max-width:260px"><label for="code">Current code from your app</label>
+      <input type="text" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="16" required>
+      <div class="help">Needed to change anything here.</div></div>
+    <div class="actions">
+      <button class="btn" type="submit" name="action" value="codes">Make new recovery codes</button>
+      {% if not required or session.get('auth_method') == 'sso' %}<button class="btn btn-danger" type="submit" name="action" value="off">Turn off two-step sign-in</button>{% endif %}
+    </div>
+  </form>
+  <p class="small muted mt">New phone? Turn two-step sign-in off, then set it up again on the new phone. Lost your phone and your recovery codes? An administrator can reset it for you.</p>
+</section>
+{% elif secret %}
+<section class="section">
+  <h2>1. Add Scholar to your authenticator app</h2>
+  <p>Use any authenticator app (Aegis, 2FAS, Google Authenticator, Microsoft Authenticator, a password manager). {% if qr %}Scan this code with it:{% else %}Choose “enter a setup key” and type this key:{% endif %}</p>
+  {% if qr %}<p><img src="{{ qr }}" alt="QR code to scan with your authenticator app" width="240" height="240" style="image-rendering:pixelated"></p>
+  <p class="small muted">Can't scan? Enter this key by hand (time-based, 6 digits):</p>{% endif %}
+  <p><code style="font-size:1.05rem; user-select:all">{{ secret }}</code></p>
+  <h2 class="mt">2. Type the code the app shows</h2>
+  <form method="post" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="field" style="max-width:200px"><label for="code">Six-digit code</label>
+      <input type="text" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" required autofocus></div>
+    <div class="actions">
+      <button class="btn btn-primary" type="submit" name="action" value="confirm">Turn on two-step sign-in</button>
+      <button class="btn" type="submit" name="action" value="cancel" formnovalidate>Cancel</button>
+    </div>
+  </form>
+</section>
+{% else %}
+<section class="section">
+  <h2><span class="badge">Off</span></h2>
+  <p>With two-step sign-in, someone who learns your password still can't sign in without your phone. You will need an authenticator app; setting up takes a minute.{% if required %} <strong>It is required for staff accounts.</strong>{% endif %}</p>
+  <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-primary" type="submit" name="action" value="start">Set up two-step sign-in</button></form>
+  {% if session.get('auth_method') == 'sso' %}<p class="small muted mt">You came in through the YunoHost portal, which doesn't ask Scholar for a code. The code is asked when you sign in to Scholar with your username and password.</p>{% endif %}
+</section>
+{% endif %}
+{% endblock %}

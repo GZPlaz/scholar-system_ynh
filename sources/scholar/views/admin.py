@@ -1,12 +1,13 @@
 import secrets
+from datetime import timedelta
 from zoneinfo import available_timezones
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
-from .. import syncevents
+from .. import staffsec, syncevents
 from ..extensions import db
-from ..models import ROLES, AuditLog, Course, Enrollment, SyncEvent, User
+from ..models import ROLES, ApiToken, AuditLog, Course, Enrollment, LoginFailure, SyncEvent, User, utcnow
 from ..utils import (
     admin_required,
     csv_response,
@@ -86,18 +87,23 @@ def edit_user(user_id=None):
         user.full_name = form.get("full_name", "").strip()
         user.email = form.get("email", "").strip()
         user.student_number = form.get("student_number", "").strip()
+        was = (user.role, user.auth_source, bool(user.active))
         user.role = role
         user.auth_source = auth_source
         user.active = parse_bool(form.get("active", ""))
+        if user_id and user.id != current_user.id and (was != (role, auth_source, bool(user.active)) or form.get("password")):
+            staffsec.sign_out_everywhere(user)  # a changed role, sign-in method, status or password ends open sessions
+        if role == "student" and user.totp_enabled:
+            staffsec.turn_off_two_step(user)
         password = form.get("password", "")
         if role == "student":
             user.password_hash = None
             user.must_change_password = False
         elif auth_source == "local":
             if password:
-                if len(password) < 8:
+                if staffsec.password_problem(password, user):
                     db.session.rollback()
-                    flash("Passwords must be at least 8 characters.", "error")
+                    flash(staffsec.password_problem(password, user).replace("The new password", "The password"), "error")
                     return render_template("admin/user_form.html", user=user if user_id else None, form=form)
                 user.set_password(password)
                 user.must_change_password = parse_bool(form.get("must_change_password", ""))
@@ -125,6 +131,7 @@ def reset_password(user_id):
     password = secrets.token_urlsafe(9)
     user.set_password(password)
     user.must_change_password = True
+    staffsec.sign_out_everywhere(user)
     log_event("user.password_reset", user.username)
     db.session.commit()
     flash(f"New temporary password for {user.username}: {password}", "success")
@@ -140,6 +147,7 @@ def delete_user(user_id):
         return redirect(url_for("admin.users"))
     if user.attempts:
         user.active = False
+        staffsec.sign_out_everywhere(user)
         log_event("user.deactivated", user.username)
         flash(f"{user.username} has assessment history, so the account was deactivated instead of deleted.", "info")
     else:
@@ -237,6 +245,11 @@ def settings():
         set_setting("ldap_default_role", "instructor")
         set_setting("attempt_policy", "latest" if form.get("attempt_policy") == "latest" else "best")
         set_setting("login_message", form.get("login_message", "").strip()[:1000])
+        scale, problem = parse_grade_scale(form.get("grade_scale", ""))
+        if problem:
+            flash(problem, "error")
+            return redirect(url_for("admin.settings"))
+        set_setting("grade_scale", "\n".join(f"{letter} {low:g}" for letter, low in scale))
         log_event("settings.saved")
         db.session.commit()
         flash("Settings saved.", "success")
@@ -252,9 +265,89 @@ def settings():
             "ldap_default_role",
             "attempt_policy",
             "login_message",
+            "grade_scale",
         )
     }
     return render_template("admin/settings.html", values=values, zones=zones)
+
+
+@bp.route("/security", methods=["GET", "POST"])
+@admin_required
+def security():
+    """Who can get in and how: two-step sign-in, sign-in failures, sessions and API tokens at a glance."""
+    if request.method == "POST":
+        action = request.form.get("action")
+        target = db.session.get(User, parse_int(request.form.get("user_id"), 0))
+        if action == "save":
+            idle = max(0, min(parse_int(request.form.get("idle_timeout_minutes"), 120) or 0, 24 * 60))
+            set_setting("idle_timeout_minutes", str(idle))
+            set_setting("require_two_step", "1" if parse_bool(request.form.get("require_two_step", "")) else "0")
+            log_event("security.settings_saved", f"two-step required: {get_setting('require_two_step')}, idle sign-out: {idle} min")
+            flash("Security settings saved.", "success")
+        elif action == "reset_two_step" and target is not None:
+            staffsec.turn_off_two_step(target)
+            staffsec.sign_out_everywhere(target)
+            log_event("security.two_step_reset", target.username)
+            flash(f"Two-step sign-in was reset for {target.username}. They are signed out and can set it up again.", "success")
+        elif action == "sign_out" and target is not None:
+            staffsec.sign_out_everywhere(target)
+            log_event("security.signed_out", target.username)
+            flash(f"{target.username} is signed out everywhere.", "success")
+        elif action == "sign_out_all":
+            for user in User.query.filter(User.role.in_(("admin", "instructor")), User.id != current_user.id):
+                staffsec.sign_out_everywhere(user)
+            log_event("security.signed_out_all")
+            flash("Everyone except you is signed out of the staff site.", "success")
+        elif action == "unlock":
+            name = request.form.get("username", "").lower()[:120]
+            LoginFailure.query.filter_by(username=name).delete(synchronize_session=False)
+            log_event("security.unlocked", name)
+            flash(f"Sign-in attempts for {name} were cleared.", "success")
+        db.session.commit()
+        return redirect(url_for("admin.security"))
+    staff = sorted(User.query.filter(User.role.in_(("admin", "instructor")), User.active.is_(True)), key=lambda u: (u.role != "admin", u.sort_key))
+    since = utcnow() - staffsec.WINDOW
+    recent = LoginFailure.query.order_by(LoginFailure.created_at.desc()).limit(25).all()
+    counts = (
+        db.session.query(LoginFailure.username, db.func.count(LoginFailure.id))
+        .filter(LoginFailure.created_at >= since, LoginFailure.username != "")
+        .group_by(LoginFailure.username)
+        .all()
+    )
+    held = sorted(name for name, n in counts if n >= staffsec.PER_ACCOUNT_AND_IP)
+    day = utcnow() - timedelta(days=1)
+    tokens = ApiToken.query.filter_by(revoked=False).all()
+    return render_template(
+        "admin/security.html",
+        staff=staff,
+        without_two_step=[u for u in staff if not u.totp_enabled],
+        recent=recent,
+        held=held,
+        failures_today=LoginFailure.query.filter(LoginFailure.created_at >= day).count(),
+        tokens=tokens,
+        now=utcnow(),
+        values={k: get_setting(k) for k in ("require_two_step", "idle_timeout_minutes")},
+        secure_cookies=current_app.config["SESSION_COOKIE_SECURE"],
+        default_key=current_app.config["SECRET_KEY"] == "dev-insecure-change-me",
+        https=request.is_secure,
+    )
+
+
+def parse_grade_scale(text):
+    """Letter grades as [(letter, lowest percent), …] from lines like "A 90". Returns (scale, problem)."""
+    scale = []
+    for line in (text or "").splitlines():
+        parts = line.replace(",", " ").replace("%", " ").split()
+        if not parts:
+            continue
+        low = parse_float(parts[-1]) if len(parts) >= 2 else None
+        if low is None or not 0 <= low <= 100 or len(parts[0]) > 6:
+            return [], f"Grade scale: “{line.strip()}” should be a letter and its lowest percentage, for example “A 90”."
+        scale.append((parts[0], low))
+    scale.sort(key=lambda pair: -pair[1])
+    if len({low for _, low in scale}) != len(scale):
+        return [], "Grade scale: two letters start at the same percentage."
+    return scale, None
 
 
 @bp.route("/audit")
@@ -268,7 +361,7 @@ def audit():
 @bp.route("/integrations", methods=["GET", "POST"])
 @admin_required
 def integrations():
-    from ..models import ApiToken
+    from ..security import parse_networks
     from .api import hash_token, new_token
 
     new_secret = None
@@ -279,9 +372,23 @@ def integrations():
             if not name:
                 flash("Give the token a name, for example “RosarioSIS”.", "error")
             else:
+                days = parse_int(request.form.get("expires_days"), 0) or 0
+                networks, problems = parse_networks(request.form.get("allowed_networks", ""))
+                if problems:
+                    flash(problems[0], "error")
+                    return redirect(url_for("admin.integrations"))
                 secret, prefix = new_token()
-                db.session.add(ApiToken(name=name, prefix=prefix, token_hash=hash_token(secret), created_by_id=current_user.id))
-                log_event("api.token_created", name)
+                token = ApiToken(
+                    name=name,
+                    prefix=prefix,
+                    token_hash=hash_token(secret),
+                    created_by_id=current_user.id,
+                    expires_at=utcnow() + timedelta(days=min(days, 3650)) if days > 0 else None,
+                    read_only=parse_bool(request.form.get("read_only", "")),
+                    allowed_networks="\n".join(str(n) for n in networks),
+                )
+                db.session.add(token)
+                log_event("api.token_created", f"{name}{' (read-only)' if token.read_only else ''}{f', expires in {days} days' if days > 0 else ''}")
                 db.session.commit()
                 new_secret = secret
         elif action == "revoke":
@@ -307,6 +414,7 @@ def integrations():
         hook_secret=hook_secret,
         hook=syncevents.stats(),
         events=events,
+        now=utcnow(),
         max_attempts=syncevents.MAX_ATTEMPTS,
     )
 
